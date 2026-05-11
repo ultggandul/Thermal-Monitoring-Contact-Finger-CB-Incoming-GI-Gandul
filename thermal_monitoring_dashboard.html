@@ -1,0 +1,2280 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-Based PMT Thermal Aging Monitoring | GI Gandul</title>
+
+  <!-- Google Fonts: Orbitron (futuristic headings) + Rajdhani (body) + Share Tech Mono (data) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Chart.js Annotations plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+
+  <style>
+    /* ============================================================
+       CSS CUSTOM PROPERTIES — Design Token System
+    ============================================================ */
+    :root {
+      /* Background layers */
+      --bg-base:        #05080f;
+      --bg-panel:       #080d18;
+      --bg-card:        #0c1220;
+      --bg-card-hover:  #111928;
+      --bg-border:      rgba(0, 212, 255, 0.12);
+      --bg-border-hot:  rgba(255, 107, 53, 0.35);
+
+      /* Brand colors */
+      --cyan:           #00d4ff;
+      --cyan-dim:       rgba(0, 212, 255, 0.15);
+      --cyan-glow:      rgba(0, 212, 255, 0.4);
+      --green:          #00ff88;
+      --green-dim:      rgba(0, 255, 136, 0.15);
+      --yellow:         #ffd700;
+      --yellow-dim:     rgba(255, 215, 0, 0.15);
+      --orange:         #ff6b35;
+      --orange-dim:     rgba(255, 107, 53, 0.15);
+      --red:            #ff2244;
+      --red-dim:        rgba(255, 34, 68, 0.15);
+
+      /* Typography */
+      --font-display:   'Orbitron', monospace;
+      --font-body:      'Rajdhani', sans-serif;
+      --font-mono:      'Share Tech Mono', monospace;
+
+      /* Text */
+      --text-primary:   #e8f4f8;
+      --text-secondary: #7a9bb5;
+      --text-muted:     #3d5a6e;
+
+      /* Effects */
+      --shadow-card:    0 4px 24px rgba(0,0,0,0.6), 0 0 0 1px var(--bg-border);
+      --shadow-glow:    0 0 20px var(--cyan-glow);
+
+      /* Thresholds */
+      --thresh-normal:  55;
+      --thresh-monitor: 65;
+      --thresh-warning: 75;
+    }
+
+    /* ============================================================
+       RESET & BASE
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body > * { position: relative; z-index: 1; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-base); }
+    ::-webkit-scrollbar-thumb { background: var(--cyan-dim); border-radius: 3px; }
+
+    /* ============================================================
+       LAYOUT
+    ============================================================ */
+    .page-wrapper { max-width: 1920px; margin: 0 auto; padding: 0 0 40px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+    .section-row { padding: 0 20px; margin-bottom: 20px; }
+
+    /* ============================================================
+       CARD COMPONENT
+    ============================================================ */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-border);
+      border-radius: 8px;
+      padding: 18px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      box-shadow: var(--shadow-card);
+    }
+    .card:hover { border-color: rgba(0,212,255,0.25); }
+    .card.warning { border-color: var(--bg-border-hot); }
+    .card.critical { border-color: rgba(255,34,68,0.4); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .card-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 3px;
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border: 1px solid rgba(0,212,255,0.2);
+    }
+
+    /* ============================================================
+       TOP HEADER
+    ============================================================ */
+    #main-header {
+      background: linear-gradient(180deg, #050a14 0%, var(--bg-panel) 100%);
+      border-bottom: 1px solid rgba(0,212,255,0.2);
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 40px rgba(0,0,0,0.8);
+    }
+
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      gap: 20px;
+    }
+
+    /* PLN Logo area */
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .logo-icon {
+      width: 42px; height: 42px;
+      background: linear-gradient(135deg, #f5c518, #ff8c00);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 900;
+      color: #0a0e1a;
+      box-shadow: 0 0 16px rgba(245,197,24,0.5);
+      flex-shrink: 0;
+    }
+    .logo-text { line-height: 1.2; }
+    .logo-text .org { font-family: var(--font-display); font-size: 11px; font-weight: 700; color: var(--yellow); letter-spacing: 2px; }
+    .logo-text .sub { font-family: var(--font-body); font-size: 11px; color: var(--text-secondary); }
+
+    /* Header title */
+    .header-title-block { text-align: center; flex: 1; }
+    .header-title-block h1 {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--text-primary);
+      text-shadow: 0 0 20px var(--cyan-glow);
+      line-height: 1.2;
+    }
+    .header-title-block .subtitle {
+      font-size: 11px;
+      color: var(--text-secondary);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Header right: status + timestamp */
+    .header-status { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+    .status-badge {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 14px;
+      border-radius: 4px;
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+    }
+    .status-badge.online  { background: rgba(0,255,136,0.12); border: 1px solid rgba(0,255,136,0.4); color: var(--green); }
+    .status-badge.warning { background: rgba(255,215,0,0.12);  border: 1px solid rgba(255,215,0,0.4);  color: var(--yellow); }
+    .status-badge.critical{ background: rgba(255,34,68,0.12);  border: 1px solid rgba(255,34,68,0.4);  color: var(--red); }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    .online  .status-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .warning .status-dot { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+    .critical .status-dot{ background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+    @keyframes blink {
+      0%,100% { opacity: 1; } 50% { opacity: 0.3; }
+    }
+
+    .header-time {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .header-time .time-val { font-size: 16px; color: var(--cyan); }
+
+    /* Scan line animation on header */
+    #main-header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      animation: scan 3s linear infinite;
+    }
+    @keyframes scan {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* ============================================================
+       SECTION LABELS
+    ============================================================ */
+    .section-label {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .section-label .label-text {
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--cyan);
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(0,212,255,0.3), transparent);
+    }
+    .section-label .label-icon { font-size: 14px; }
+
+    /* ============================================================
+       EXECUTIVE SUMMARY CARDS
+    ============================================================ */
+    .summary-card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: all 0.3s;
+      box-shadow: var(--shadow-card);
+      position: relative;
+      overflow: hidden;
+    }
+    .summary-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 3px; height: 100%;
+      background: var(--accent, var(--cyan));
+      box-shadow: 0 0 10px var(--accent, var(--cyan));
+    }
+    .summary-card:hover { transform: translateY(-2px); border-color: rgba(0,212,255,0.3); }
+
+    .summary-icon {
+      width: 44px; height: 44px;
+      border-radius: 8px;
+      background: rgba(0,212,255,0.08);
+      border: 1px solid rgba(0,212,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .summary-info { flex: 1; }
+    .summary-info .s-label { font-size: 11px; color: var(--text-secondary); letter-spacing: 1px; text-transform: uppercase; }
+    .summary-info .s-value {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.1;
+    }
+    .summary-info .s-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ============================================================
+       TEMPERATURE GAUGE
+    ============================================================ */
+    .gauge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px;
+    }
+    .gauge-title {
+      font-family: var(--font-display);
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .gauge-canvas-wrap { position: relative; width: 130px; height: 90px; }
+    .gauge-center-val {
+      position: absolute;
+      bottom: 2px; left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+    }
+    .gauge-temp {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .gauge-unit { font-size: 10px; color: var(--text-secondary); }
+    .gauge-meta {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .gauge-meta-item { text-align: center; }
+    .gauge-meta-item .gm-label { font-size: 9px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+    .gauge-meta-item .gm-val  { font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); }
+
+    /* ============================================================
+       TREND CHART CONTROLS
+    ============================================================ */
+    .chart-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .ctrl-btn {
+      font-family: var(--font-display);
+      font-size: 9px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 3px;
+      border: 1px solid var(--bg-border);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .ctrl-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+    .ctrl-btn.active { background: var(--cyan-dim); border-color: var(--cyan); color: var(--cyan); }
+
+    /* ============================================================
+       PROGRESS BAR
+    ============================================================ */
+    .progress-bar-wrap { margin-bottom: 10px; }
+    .progress-label {
+      display: flex; justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .progress-label .p-val { font-family: var(--font-mono); color: var(--text-primary); }
+    .progress-track {
+      height: 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s ease;
+    }
+
+    /* ============================================================
+       STATUS PILL
+    ============================================================ */
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    .pill.normal   { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(0,255,136,0.3); }
+    .pill.monitor  { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(255,215,0,0.3); }
+    .pill.warning  { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(255,107,53,0.3); }
+    .pill.critical { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(255,34,68,0.3); }
+
+    /* ============================================================
+       ANOMALY TABLE
+    ============================================================ */
+    .anomaly-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .anomaly-table th {
+      font-family: var(--font-display);
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .anomaly-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      vertical-align: middle;
+    }
+    .anomaly-table tr:hover td { background: rgba(0,212,255,0.03); }
+    .anomaly-table tr:last-child td { border-bottom: none; }
+
+    /* ============================================================
+       HEATMAP
+    ============================================================ */
+    .heatmap-grid {
+      display: grid;
+      gap: 4px;
+    }
+    .heatmap-row {
+      display: grid;
+      gap: 4px;
+    }
+    .heatmap-cell {
+      padding: 8px 6px;
+      border-radius: 4px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.5s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .heatmap-cell .cell-label {
+      font-family: var(--font-body);
+      font-size: 9px;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 1px;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .heatmap-cell .cell-val { font-size: 14px; }
+    .hm-normal   { background: rgba(0,255,136,0.12); color: var(--green); border: 1px solid rgba(0,255,136,0.2); }
+    .hm-monitor  { background: rgba(255,215,0,0.12);  color: var(--yellow); border: 1px solid rgba(255,215,0,0.2); }
+    .hm-warning  { background: rgba(255,107,53,0.15); color: var(--orange); border: 1px solid rgba(255,107,53,0.3); }
+    .hm-critical { background: rgba(255,34,68,0.18);  color: var(--red);    border: 1px solid rgba(255,34,68,0.4);
+                   animation: pulse-red 1.5s infinite; }
+
+    @keyframes pulse-red {
+      0%,100% { box-shadow: 0 0 6px rgba(255,34,68,0.3); }
+      50%      { box-shadow: 0 0 14px rgba(255,34,68,0.6); }
+    }
+
+    /* ============================================================
+       HEALTH INDEX TABLE
+    ============================================================ */
+    .hi-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .hi-table th {
+      font-family: var(--font-display);
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      text-align: left;
+    }
+    .hi-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+    }
+    .hi-table tr:hover td { background: rgba(0,212,255,0.03); }
+    .hi-table tr:last-child td { border-bottom: none; }
+    .hi-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .hi-bar-track {
+      flex: 1;
+      height: 4px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .hi-bar-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+    .hi-val {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      min-width: 35px;
+      text-align: right;
+    }
+
+    /* ============================================================
+       MAINTENANCE RECOMMENDATION
+    ============================================================ */
+    .rec-item {
+      display: flex;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.04);
+      margin-bottom: 8px;
+      transition: all 0.3s;
+    }
+    .rec-item:hover { background: rgba(0,212,255,0.04); border-color: rgba(0,212,255,0.15); }
+    .rec-item:last-child { margin-bottom: 0; }
+    .rec-priority {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .rec-priority.p1 { background: rgba(255,34,68,0.2); color: var(--red); border: 1px solid rgba(255,34,68,0.4); }
+    .rec-priority.p2 { background: rgba(255,107,53,0.2); color: var(--orange); border: 1px solid rgba(255,107,53,0.4); }
+    .rec-priority.p3 { background: rgba(255,215,0,0.2); color: var(--yellow); border: 1px solid rgba(255,215,0,0.4); }
+    .rec-priority.p4 { background: rgba(0,212,255,0.1); color: var(--cyan); border: 1px solid rgba(0,212,255,0.2); }
+    .rec-content { flex: 1; }
+    .rec-action { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .rec-reason { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .rec-target { font-family: var(--font-mono); font-size: 10px; color: var(--cyan); margin-top: 2px; }
+
+    /* ============================================================
+       AI ANOMALY SCORE
+    ============================================================ */
+    .ai-score-ring {
+      position: relative;
+      width: 100px; height: 100px;
+      margin: 0 auto 12px;
+    }
+    .ai-score-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+    .ai-score-center .score-num {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .ai-score-center .score-lbl {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+
+    /* ============================================================
+       AGING METER
+    ============================================================ */
+    .aging-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .aging-row:last-child { border-bottom: none; }
+    .aging-label { font-size: 12px; color: var(--text-secondary); }
+    .aging-value {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .aging-value.warn { color: var(--orange); }
+    .aging-value.crit { color: var(--red); }
+
+    /* ============================================================
+       METRIC PILL ROW
+    ============================================================ */
+    .metric-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .metric-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 6px;
+      flex: 1;
+      min-width: 60px;
+    }
+    .metric-chip .mc-val {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      color: var(--cyan);
+      font-weight: 700;
+    }
+    .metric-chip .mc-lbl {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* ============================================================
+       PHASE DELTA INDICATORS
+    ============================================================ */
+    .delta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .delta-box {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 6px;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .delta-box .db-phase { font-family: var(--font-display); font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .delta-box .db-label { font-size: 9px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+    .delta-box .db-val { font-family: var(--font-mono); font-size: 14px; margin-top: 4px; }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    #main-footer {
+      margin-top: 30px;
+      padding: 16px 20px;
+      border-top: 1px solid rgba(0,212,255,0.1);
+      background: var(--bg-panel);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .footer-brand {
+      font-family: var(--font-display);
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .footer-brand span { color: var(--cyan); }
+    .footer-info { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+
+    /* ============================================================
+       LOADING OVERLAY
+    ============================================================ */
+    #loading-overlay {
+      position: fixed; inset: 0;
+      background: var(--bg-base);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.6s;
+    }
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .loader-logo {
+      font-family: var(--font-display);
+      font-size: 13px;
+      letter-spacing: 4px;
+      color: var(--cyan);
+      text-shadow: var(--shadow-glow);
+      margin-bottom: 30px;
+      animation: flicker 2s infinite;
+    }
+    @keyframes flicker {
+      0%,100%  { opacity: 1; }
+      92% { opacity: 1; }
+      93% { opacity: 0.4; }
+      94% { opacity: 1; }
+      96% { opacity: 0.6; }
+      97% { opacity: 1; }
+    }
+    .loader-bar-track { width: 280px; height: 2px; background: rgba(0,212,255,0.1); border-radius: 1px; overflow: hidden; }
+    .loader-bar { height: 100%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); animation: load-progress 1.5s ease forwards; }
+    @keyframes load-progress { from { width: 0; } to { width: 100%; } }
+    .loader-status { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 14px; }
+
+    /* ============================================================
+       CONNECTION STATUS BAR
+    ============================================================ */
+    #conn-bar {
+      background: rgba(0,212,255,0.06);
+      border-bottom: 1px solid rgba(0,212,255,0.1);
+      padding: 4px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    #conn-bar .cb-item { display: flex; align-items: center; gap: 5px; }
+    #conn-bar .cb-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+    #conn-bar .cb-refresh {
+      margin-left: auto;
+      padding: 2px 10px;
+      border: 1px solid rgba(0,212,255,0.2);
+      border-radius: 3px;
+      background: transparent;
+      color: var(--cyan);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      transition: all 0.2s;
+    }
+    #conn-bar .cb-refresh:hover { background: var(--cyan-dim); }
+
+    /* ============================================================
+       UTILITY
+    ============================================================ */
+    canvas { max-width: 100%; }
+    .text-cyan   { color: var(--cyan); }
+    .text-green  { color: var(--green); }
+    .text-yellow { color: var(--yellow); }
+    .text-orange { color: var(--orange); }
+    .text-red    { color: var(--red); }
+    .font-mono   { font-family: var(--font-mono); }
+    .font-display { font-family: var(--font-display); }
+    .text-muted  { color: var(--text-muted); }
+    .mt-8 { margin-top: 8px; }
+    .mt-12 { margin-top: 12px; }
+    .mb-0 { margin-bottom: 0; }
+
+    /* ============================================================
+       RESPONSIVE
+    ============================================================ */
+    @media (max-width: 1200px) {
+      .grid-6 { grid-template-columns: repeat(3, 1fr); }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .grid-6 { grid-template-columns: repeat(2, 1fr); }
+      .header-title-block h1 { font-size: 12px; }
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ============================================================
+     LOADING OVERLAY
+============================================================ -->
+<div id="loading-overlay">
+  <div class="loader-logo">⚡ AI THERMAL MONITORING SYSTEM</div>
+  <div class="loader-bar-track"><div class="loader-bar"></div></div>
+  <div class="loader-status" id="loader-status">INITIALIZING SENSORS...</div>
+</div>
+
+<div class="page-wrapper">
+
+  <!-- ===========================================================
+       TOP HEADER
+  =========================================================== -->
+  <header id="main-header">
+    <div class="header-inner">
+      <!-- PLN Logo -->
+      <div class="header-logo">
+        <div class="logo-icon">PLN</div>
+        <div class="logo-text">
+          <div class="org">PT PLN (PERSERO)</div>
+          <div class="sub">Gardu Induk Gandul · Sistem Monitoring AI</div>
+        </div>
+      </div>
+
+      <!-- Title -->
+      <div class="header-title-block">
+        <h1>AI-BASED PMT THERMAL AGING MONITORING</h1>
+        <div class="subtitle">Incoming Transformer · Real-time Condition Assessment</div>
+      </div>
+
+      <!-- Status + Time -->
+      <div class="header-status">
+        <div class="status-badge online" id="status-badge">
+          <div class="status-dot"></div>
+          <span id="status-text">ONLINE</span>
+        </div>
+        <div class="header-time">
+          <div class="time-val" id="clock">--:--:--</div>
+          <div id="date-display">--/--/----</div>
+          <div id="last-update">Update: --</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Connection status bar -->
+  <div id="conn-bar">
+    <div class="cb-item"><div class="cb-dot"></div><span id="conn-source">DATASOURCE: GOOGLE SHEETS</span></div>
+    <div class="cb-item"><span id="conn-points">DATAPOINTS: --</span></div>
+    <div class="cb-item"><span id="conn-interval">AUTO-REFRESH: 60s</span></div>
+    <div class="cb-item"><span id="conn-latency">LATENCY: --</span></div>
+    <button class="cb-refresh" onclick="fetchAndRender()">⟳ REFRESH</button>
+  </div>
+
+  <!-- ===========================================================
+       SECTION 1: EXECUTIVE SUMMARY
+  =========================================================== -->
+  <div class="section-row" style="margin-top:18px;">
+    <div class="section-label">
+      <span class="label-icon">📊</span>
+      <span class="label-text">Executive Summary</span>
+    </div>
+    <div class="grid-6" id="summary-cards">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SECTION 2: REALTIME TEMPERATURE + TREND CHART
+  =========================================================== -->
+  <div class="section-row">
+    <div style="display:grid; grid-template-columns:1fr 1.6fr; gap:16px;">
+
+      <!-- Temperature Gauges -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Realtime Temperature · PMT Incoming</span>
+          <span class="card-badge" id="gauge-trafo-label">TRAFO 2</span>
+        </div>
+        <!-- Trafo selector -->
+        <div class="chart-controls" style="margin-bottom:14px;">
+          <button class="ctrl-btn active" onclick="setGaugeTrafo(2,this)">Trafo 2</button>
+          <button class="ctrl-btn" onclick="setGaugeTrafo(3,this)">Trafo 3</button>
+          <button class="ctrl-btn" onclick="setGaugeTrafo(4,this)">Trafo 4</button>
+        </div>
+        <div id="gauge-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px;">
+          <!-- Gauges injected by JS -->
+        </div>
+        <!-- Phase delta row -->
+        <div class="delta-grid" id="delta-grid">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Thermal Trend Chart -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Thermal Trend · Time Series</span>
+          <div class="chart-controls">
+            <button class="ctrl-btn active" onclick="setTrendTrafo(2,this)">Trafo 2</button>
+            <button class="ctrl-btn" onclick="setTrendTrafo(3,this)">Trafo 3</button>
+            <button class="ctrl-btn" onclick="setTrendTrafo(4,this)">Trafo 4</button>
+            <button class="ctrl-btn active" onclick="toggleSeries('R',this)" id="btn-R" style="--accent:var(--cyan);">R</button>
+            <button class="ctrl-btn active" onclick="toggleSeries('S',this)" id="btn-S">S</button>
+            <button class="ctrl-btn active" onclick="toggleSeries('T',this)" id="btn-T">T</button>
+          </div>
+        </div>
+        <canvas id="trendChart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SECTION 3: AGING ANALYTICS + AI ANOMALY
+  =========================================================== -->
+  <div class="section-row">
+    <div class="grid-3">
+
+      <!-- Thermal Aging Analytics -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Thermal Aging Analytics</span>
+          <span class="card-badge">IEEE</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center;">
+          <div>
+            <canvas id="agingRadial" height="140"></canvas>
+          </div>
+          <div id="aging-stats">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+        <div style="margin-top:14px;" id="aging-bars">
+          <!-- Progress bars populated by JS -->
+        </div>
+      </div>
+
+      <!-- AI Anomaly Detection -->
+      <div class="card" style="grid-column: span 2;">
+        <div class="card-header">
+          <span class="card-title">AI Anomaly Detection Engine</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">MODEL: THERMAL-AI v2.1</span>
+            <span class="card-badge" id="anomaly-badge">SCANNING</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:140px 1fr;gap:16px;">
+          <!-- Anomaly score ring -->
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div class="ai-score-ring">
+              <canvas id="anomalyScore" width="100" height="100"></canvas>
+              <div class="ai-score-center">
+                <div class="score-num text-orange" id="anomaly-score-val">--</div>
+                <div class="score-lbl">ANOMALY</div>
+              </div>
+            </div>
+            <div class="metric-row" style="flex-direction:column;gap:4px;width:100%;">
+              <div class="metric-chip"><span class="mc-val text-red" id="anom-count">--</span><span class="mc-lbl">Anomalies</span></div>
+              <div class="metric-chip"><span class="mc-val text-yellow" id="anom-warning">--</span><span class="mc-lbl">Warnings</span></div>
+            </div>
+          </div>
+          <!-- Anomaly table -->
+          <div style="overflow-x:auto;">
+            <table class="anomaly-table" id="anomaly-table">
+              <thead>
+                <tr>
+                  <th>Equipment</th>
+                  <th>Type</th>
+                  <th>Score</th>
+                  <th>ΔT</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="anomaly-tbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SECTION 4: PHASE BALANCE + HEATMAP
+  =========================================================== -->
+  <div class="section-row">
+    <div class="grid-2">
+
+      <!-- Phase Balance Analysis -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Phase Balance Analysis</span>
+          <span class="card-badge" id="phase-trafo-label">ALL TRAFO</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center;">
+          <canvas id="phaseRadar" height="200"></canvas>
+          <div>
+            <div id="phase-imbalance">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thermal Heatmap -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Thermal Heatmap · All Equipment</span>
+          <div style="display:flex;gap:8px;align-items:center;font-family:var(--font-mono);font-size:10px;">
+            <span style="color:var(--green);">■ Normal</span>
+            <span style="color:var(--yellow);">■ Monitor</span>
+            <span style="color:var(--orange);">■ Warning</span>
+            <span style="color:var(--red);">■ Critical</span>
+          </div>
+        </div>
+        <div id="heatmap-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SECTION 5: HEALTH INDEX TABLE + MAINTENANCE
+  =========================================================== -->
+  <div class="section-row">
+    <div class="grid-2">
+
+      <!-- Equipment Health Index -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Equipment Health Index Ranking</span>
+          <span class="card-badge">SORTED: WORST FIRST</span>
+        </div>
+        <table class="hi-table" id="hi-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Equipment</th>
+              <th>Health Index</th>
+              <th>Aging Factor</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="hi-tbody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Predictive Maintenance -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Predictive Maintenance Recommendations</span>
+          <span class="card-badge">AI-GENERATED</span>
+        </div>
+        <div id="maintenance-recs">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       FOOTER
+  =========================================================== -->
+  <footer id="main-footer">
+    <div class="footer-brand">
+      <span>AI-Based Substation Asset Monitoring System</span> ·
+      GI Gandul · PT PLN (Persero) UIT JBT
+    </div>
+    <div class="footer-info" id="footer-info">
+      IEEE C57.91 · IEC 60076-7 · PLN Asset Health Index Framework
+    </div>
+  </footer>
+
+</div><!-- end page-wrapper -->
+
+
+<!-- ============================================================
+     JAVASCRIPT ENGINE
+============================================================ -->
+<script>
+"use strict";
+/* ============================================================
+   0. CONFIGURATION — Edit this section for deployment
+============================================================ */
+const CONFIG = {
+  // Google Sheets ID
+  SHEET_ID: '1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE',
+  // Sheet name (leave empty for first sheet)
+  SHEET_NAME: 'Sheet1',
+  // Auto-refresh interval in ms (60000 = 1 minute)
+  REFRESH_INTERVAL: 60000,
+  // Max data points to display in trend chart
+  MAX_TREND_POINTS: 48,
+  // Temperature thresholds (°C)
+  THRESH: { NORMAL: 55, MONITOR: 65, WARNING: 75 },
+  // Aging reference temperature (IEEE C57.91)
+  AGING_REF_TEMP: 40,
+};
+
+/* Google Sheets JSON URL builder */
+function buildSheetURL() {
+  const base = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq`;
+  const params = new URLSearchParams({ tqx: 'out:json' });
+  if (CONFIG.SHEET_NAME) params.set('sheet', CONFIG.SHEET_NAME);
+  return `${base}?${params.toString()}`;
+}
+
+/* ============================================================
+   1. DUMMY DATA GENERATOR
+   Realistic simulation so dashboard works offline / before sheet loads
+============================================================ */
+function generateDummyData() {
+  const now = new Date();
+  const rows = [];
+  const baseTemps = {
+    't2': { R: { atas: 52, bawah: 48 }, S: { atas: 58, bawah: 54 }, T: { atas: 55, bawah: 51 } },
+    't3': { R: { atas: 48, bawah: 44 }, S: { atas: 72, bawah: 67 }, T: { atas: 45, bawah: 41 } },
+    't4': { R: { atas: 61, bawah: 57 }, S: { atas: 64, bawah: 60 }, T: { atas: 59, bawah: 55 } },
+  };
+
+  for (let i = CONFIG.MAX_TREND_POINTS - 1; i >= 0; i--) {
+    const t = new Date(now.getTime() - i * 30 * 60000); // 30-min intervals
+    const noise = () => (Math.random() - 0.5) * 4;
+    const trend = i < 12 ? (CONFIG.MAX_TREND_POINTS - 1 - i) * 0.1 : 0; // slight warming trend
+
+    rows.push({
+      timestamp: t,
+      t2_r_atas:  +(baseTemps.t2.R.atas  + noise() + trend).toFixed(1),
+      t2_r_bawah: +(baseTemps.t2.R.bawah + noise()).toFixed(1),
+      t2_s_atas:  +(baseTemps.t2.S.atas  + noise() + trend).toFixed(1),
+      t2_s_bawah: +(baseTemps.t2.S.bawah + noise()).toFixed(1),
+      t2_t_atas:  +(baseTemps.t2.T.atas  + noise()).toFixed(1),
+      t2_t_bawah: +(baseTemps.t2.T.bawah + noise()).toFixed(1),
+
+      t3_r_atas:  +(baseTemps.t3.R.atas  + noise()).toFixed(1),
+      t3_r_bawah: +(baseTemps.t3.R.bawah + noise()).toFixed(1),
+      t3_s_atas:  +(baseTemps.t3.S.atas  + noise() + trend * 1.5).toFixed(1),
+      t3_s_bawah: +(baseTemps.t3.S.bawah + noise() + trend * 1.2).toFixed(1),
+      t3_t_atas:  +(baseTemps.t3.T.atas  + noise()).toFixed(1),
+      t3_t_bawah: +(baseTemps.t3.T.bawah + noise()).toFixed(1),
+
+      t4_r_atas:  +(baseTemps.t4.R.atas  + noise()).toFixed(1),
+      t4_r_bawah: +(baseTemps.t4.R.bawah + noise()).toFixed(1),
+      t4_s_atas:  +(baseTemps.t4.S.atas  + noise()).toFixed(1),
+      t4_s_bawah: +(baseTemps.t4.S.bawah + noise()).toFixed(1),
+      t4_t_atas:  +(baseTemps.t4.T.atas  + noise()).toFixed(1),
+      t4_t_bawah: +(baseTemps.t4.T.bawah + noise()).toFixed(1),
+    });
+  }
+  return rows;
+}
+
+/* ============================================================
+   2. GOOGLE SHEETS PARSER
+   Handles the gviz/tq response format
+============================================================ */
+function parseGvizResponse(raw) {
+  try {
+    // Strip the google.visualization.Query.setResponse(...)  wrapper
+    const json = raw.replace(/^[^(]+\(/, '').replace(/\);?\s*$/, '');
+    const data = JSON.parse(json);
+    const cols = data.table.cols.map(c => c.label);
+    const rows = data.table.rows.map(row => {
+      const obj = {};
+      row.c.forEach((cell, i) => {
+        obj[cols[i]] = cell ? cell.v : null;
+      });
+      return obj;
+    });
+    return { success: true, cols, rows };
+  } catch (e) {
+    console.warn('Sheet parse error:', e);
+    return { success: false };
+  }
+}
+
+/* Map sheet columns to internal keys */
+function mapSheetRow(raw) {
+  // Flexible key mapping — handles variations in column naming
+  const find = (keys) => {
+    for (const k of keys) {
+      for (const rk of Object.keys(raw)) {
+        if (rk.toLowerCase().includes(k.toLowerCase())) return raw[rk];
+      }
+    }
+    return null;
+  };
+
+  const parseTS = (v) => {
+    if (!v) return new Date();
+    if (typeof v === 'string') return new Date(v);
+    // Google Sheets date: Date(year,month-1,day,h,m,s)
+    if (typeof v === 'object' && v instanceof Date) return v;
+    return new Date();
+  };
+
+  return {
+    timestamp: parseTS(find(['Timestamp','timestamp','waktu','Waktu','time','Time'])),
+    t2_r_atas:  +find(['Trafo 2 R Atas','trafo 2 r atas']) || 0,
+    t2_r_bawah: +find(['Trafo 2 R Bawah','trafo 2 r bawah']) || 0,
+    t2_s_atas:  +find(['Trafo 2 S Atas','trafo 2 s atas']) || 0,
+    t2_s_bawah: +find(['Trafo 2 S Bawah','trafo 2 s bawah']) || 0,
+    t2_t_atas:  +find(['Trafo 2 T Atas','trafo 2 t atas']) || 0,
+    t2_t_bawah: +find(['Trafo 2 T Bawah','trafo 2 t bawah']) || 0,
+    t3_r_atas:  +find(['Trafo 3 R Atas','trafo 3 r atas']) || 0,
+    t3_r_bawah: +find(['Trafo 3 R Bawah','trafo 3 r bawah']) || 0,
+    t3_s_atas:  +find(['Trafo 3 S Atas','trafo 3 s atas']) || 0,
+    t3_s_bawah: +find(['Trafo 3 S Bawah','trafo 3 s bawah']) || 0,
+    t3_t_atas:  +find(['Trafo 3 T Atas','trafo 3 t atas']) || 0,
+    t3_t_bawah: +find(['Trafo 3 T Bawah','trafo 3 t bawah']) || 0,
+    t4_r_atas:  +find(['Trafo 4 R Atas','trafo 4 r atas']) || 0,
+    t4_r_bawah: +find(['Trafo 4 R Bawah','trafo 4 r bawah']) || 0,
+    t4_s_atas:  +find(['Trafo 4 S Atas','trafo 4 s atas']) || 0,
+    t4_s_bawah: +find(['Trafo 4 S Bawah','trafo 4 s bawah']) || 0,
+    t4_t_atas:  +find(['Trafo 4 T Atas','trafo 4 t atas']) || 0,
+    t4_t_bawah: +find(['Trafo 4 T Bawah','trafo 4 t bawah']) || 0,
+  };
+}
+
+/* ============================================================
+   3. ANALYTICS ENGINE
+============================================================ */
+const Analytics = {
+  /** Get latest temps for a trafo */
+  latest(data, trafo) {
+    if (!data.length) return null;
+    const row = data[data.length - 1];
+    const t = `t${trafo}`;
+    return {
+      r_atas:  row[`${t}_r_atas`],
+      r_bawah: row[`${t}_r_bawah`],
+      s_atas:  row[`${t}_s_atas`],
+      s_bawah: row[`${t}_s_bawah`],
+      t_atas:  row[`${t}_t_atas`],
+      t_bawah: row[`${t}_t_bawah`],
+    };
+  },
+
+  /** Max temp across all trafo in latest row */
+  hotspot(data) {
+    if (!data.length) return { val: 0, label: '--' };
+    const row = data[data.length - 1];
+    let max = 0; let label = '';
+    const keys = Object.keys(row).filter(k => k !== 'timestamp');
+    keys.forEach(k => {
+      if (row[k] > max) { max = row[k]; label = k; }
+    });
+    return { val: max, label: label.replace(/_/g,' ').toUpperCase() };
+  },
+
+  /** Average of all temp channels in latest row */
+  avgAll(data) {
+    if (!data.length) return 0;
+    const row = data[data.length - 1];
+    const vals = Object.keys(row).filter(k => k !== 'timestamp').map(k => row[k]).filter(v => v > 0);
+    return vals.length ? +(vals.reduce((a,b) => a+b,0) / vals.length).toFixed(1) : 0;
+  },
+
+  /** Aging Factor: AF = 2^((T-40)/10) per IEEE C57.91 */
+  agingFactor(temp) {
+    return Math.pow(2, (temp - CONFIG.AGING_REF_TEMP) / 10);
+  },
+
+  /** Health Index: HI = 100 - agingScore (clamped 0-100) */
+  healthIndex(temp) {
+    const af = this.agingFactor(temp);
+    // Normalize: AF=1(40°C)→HI=100, AF=8(70°C)→HI=50, AF>32→HI critical
+    const score = Math.min(100, af * 10);
+    return Math.max(0, Math.round(100 - score));
+  },
+
+  /** Severity classification */
+  severity(temp) {
+    if (temp < CONFIG.THRESH.NORMAL)  return 'normal';
+    if (temp < CONFIG.THRESH.MONITOR) return 'monitor';
+    if (temp < CONFIG.THRESH.WARNING) return 'warning';
+    return 'critical';
+  },
+
+  /** Delta atas-bawah */
+  deltaAB(t_atas, t_bawah) { return +(t_atas - t_bawah).toFixed(1); },
+
+  /** Delta antar fasa (max-min) */
+  deltaPhase(r, s, t) { return +(Math.max(r,s,t) - Math.min(r,s,t)).toFixed(1); },
+
+  /** Moving average */
+  movingAverage(arr, window=5) {
+    return arr.map((_, i) => {
+      const start = Math.max(0, i - window + 1);
+      const slice = arr.slice(start, i+1);
+      return +(slice.reduce((a,b)=>a+b,0)/slice.length).toFixed(2);
+    });
+  },
+
+  /** Thermal gradient dT/dt (°C/hr) */
+  gradient(data, key) {
+    if (data.length < 2) return 0;
+    const last  = data[data.length-1];
+    const prev  = data[data.length-2];
+    const dt    = (last.timestamp - prev.timestamp) / 3600000; // hours
+    if (dt === 0) return 0;
+    return +((last[key] - prev[key]) / dt).toFixed(2);
+  },
+
+  /** AI Anomaly score (0-100) based on multiple factors */
+  anomalyScore(data, trafo) {
+    const latest = this.latest(data, trafo);
+    if (!latest) return 0;
+    let score = 0;
+
+    // Factor 1: High temperature
+    const maxTemp = Math.max(latest.r_atas, latest.s_atas, latest.t_atas);
+    if (maxTemp > CONFIG.THRESH.WARNING)      score += 40;
+    else if (maxTemp > CONFIG.THRESH.MONITOR) score += 20;
+    else if (maxTemp > CONFIG.THRESH.NORMAL)  score += 10;
+
+    // Factor 2: Phase imbalance
+    const dpR = this.deltaAB(latest.r_atas, latest.r_bawah);
+    const dpS = this.deltaAB(latest.s_atas, latest.s_bawah);
+    const dpT = this.deltaAB(latest.t_atas, latest.t_bawah);
+    const maxDelta = Math.max(dpR, dpS, dpT);
+    if (maxDelta > 15) score += 30;
+    else if (maxDelta > 8) score += 15;
+    else if (maxDelta > 4) score += 5;
+
+    // Factor 3: Inter-phase imbalance
+    const phaseImbal = this.deltaPhase(latest.r_atas, latest.s_atas, latest.t_atas);
+    if (phaseImbal > 20) score += 20;
+    else if (phaseImbal > 10) score += 10;
+
+    // Factor 4: Thermal gradient (recent trend)
+    const key = `t${trafo}_s_atas`; // Use S-phase as reference
+    const grad = this.gradient(data, key);
+    if (Math.abs(grad) > 10) score += 10;
+
+    return Math.min(100, score);
+  },
+
+  /** Get color var for a temp value */
+  tempColor(temp) {
+    const s = this.severity(temp);
+    return { normal:'#00ff88', monitor:'#ffd700', warning:'#ff6b35', critical:'#ff2244' }[s];
+  },
+
+  /** Status label */
+  statusLabel(hi) {
+    if (hi >= 80) return 'Excellent';
+    if (hi >= 65) return 'Good';
+    if (hi >= 50) return 'Warning';
+    return 'Critical';
+  },
+};
+
+/* ============================================================
+   4. STATE
+============================================================ */
+let APP = {
+  data: [],
+  activeGaugeTrafo: 2,
+  activeTrendTrafo: 2,
+  trendVisibility: { R: true, S: true, T: true },
+  charts: {},
+  refreshTimer: null,
+  usingDummy: false,
+};
+
+/* ============================================================
+   5. CHART INSTANCES
+============================================================ */
+const ChartDefs = {
+  trendDefaults: {
+    responsive: true,
+    animation: { duration: 600, easing: 'easeInOutQuart' },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        labels: { color: '#7a9bb5', font: { family: "'Share Tech Mono'" }, boxWidth: 16, padding: 14 }
+      },
+      tooltip: {
+        backgroundColor: '#0c1220',
+        borderColor: 'rgba(0,212,255,0.2)',
+        borderWidth: 1,
+        titleColor: '#00d4ff',
+        bodyColor: '#e8f4f8',
+        titleFont: { family: "'Orbitron'", size: 10 },
+        bodyFont: { family: "'Share Tech Mono'", size: 11 },
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}°C`
+        }
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: '#3d5a6e', font: { family: "'Share Tech Mono'", size: 10 }, maxTicksLimit: 8 },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+      },
+      y: {
+        ticks: { color: '#3d5a6e', font: { family: "'Share Tech Mono'", size: 10 }, callback: v => v+'°C' },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        min: 30, max: 90,
+      }
+    }
+  },
+
+  radarDefaults: {
+    responsive: true,
+    animation: { duration: 600 },
+    plugins: {
+      legend: { labels: { color: '#7a9bb5', font: { family: "'Share Tech Mono'", size: 10 } } },
+      tooltip: {
+        backgroundColor: '#0c1220', borderColor: 'rgba(0,212,255,0.2)', borderWidth: 1,
+        titleColor: '#00d4ff', bodyColor: '#e8f4f8',
+        callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.r.toFixed(1)}°C` }
+      }
+    },
+    scales: {
+      r: {
+        ticks: { color: '#3d5a6e', font: { family: "'Share Tech Mono'", size: 9 }, backdropColor: 'transparent' },
+        grid: { color: 'rgba(255,255,255,0.06)' },
+        pointLabels: { color: '#7a9bb5', font: { family: "'Orbitron'", size: 10 } },
+        min: 20,
+      }
+    }
+  },
+};
+
+function initCharts() {
+  Chart.defaults.color = '#7a9bb5';
+  Chart.defaults.borderColor = 'rgba(255,255,255,0.04)';
+
+  // Trend chart
+  const trendCtx = document.getElementById('trendChart').getContext('2d');
+  APP.charts.trend = new Chart(trendCtx, {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: {
+      ...ChartDefs.trendDefaults,
+      plugins: {
+        ...ChartDefs.trendDefaults.plugins,
+        annotation: {
+          annotations: {
+            normalLine: {
+              type: 'line', yMin: CONFIG.THRESH.NORMAL, yMax: CONFIG.THRESH.NORMAL,
+              borderColor: 'rgba(0,255,136,0.3)', borderWidth: 1, borderDash: [4,4],
+              label: { content: 'Normal', display: true, color: '#00ff88', font: { size: 9 } }
+            },
+            monitorLine: {
+              type: 'line', yMin: CONFIG.THRESH.MONITOR, yMax: CONFIG.THRESH.MONITOR,
+              borderColor: 'rgba(255,215,0,0.3)', borderWidth: 1, borderDash: [4,4],
+              label: { content: 'Monitor', display: true, color: '#ffd700', font: { size: 9 } }
+            },
+            warningLine: {
+              type: 'line', yMin: CONFIG.THRESH.WARNING, yMax: CONFIG.THRESH.WARNING,
+              borderColor: 'rgba(255,107,53,0.4)', borderWidth: 1, borderDash: [4,4],
+              label: { content: 'Warning', display: true, color: '#ff6b35', font: { size: 9 } }
+            },
+          }
+        }
+      }
+    }
+  });
+
+  // Phase Radar chart
+  const radarCtx = document.getElementById('phaseRadar').getContext('2d');
+  APP.charts.radar = new Chart(radarCtx, {
+    type: 'radar',
+    data: {
+      labels: ['T2-R', 'T2-S', 'T2-T', 'T3-R', 'T3-S', 'T3-T', 'T4-R', 'T4-S', 'T4-T'],
+      datasets: [
+        {
+          label: 'Atas',
+          data: Array(9).fill(0),
+          backgroundColor: 'rgba(0,212,255,0.12)',
+          borderColor: '#00d4ff', borderWidth: 1.5,
+          pointBackgroundColor: '#00d4ff', pointRadius: 3,
+        },
+        {
+          label: 'Bawah',
+          data: Array(9).fill(0),
+          backgroundColor: 'rgba(255,107,53,0.08)',
+          borderColor: '#ff6b35', borderWidth: 1.5,
+          pointBackgroundColor: '#ff6b35', pointRadius: 3,
+        }
+      ]
+    },
+    options: ChartDefs.radarDefaults
+  });
+
+  // Aging radial
+  const agingCtx = document.getElementById('agingRadial').getContext('2d');
+  APP.charts.aging = new Chart(agingCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Trafo 2', 'Trafo 3', 'Trafo 4'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: ['rgba(0,212,255,0.7)', 'rgba(255,107,53,0.7)', 'rgba(255,215,0,0.7)'],
+        borderColor: ['#00d4ff', '#ff6b35', '#ffd700'],
+        borderWidth: 1,
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '68%',
+      animation: { duration: 800 },
+      plugins: {
+        legend: { labels: { color: '#7a9bb5', font: { family: "'Share Tech Mono'", size: 10 }, padding: 10, boxWidth: 12 } },
+        tooltip: {
+          backgroundColor: '#0c1220', borderColor: 'rgba(0,212,255,0.2)', borderWidth: 1,
+          callbacks: { label: ctx => ` AF: ${ctx.parsed.toFixed(2)}x` }
+        }
+      }
+    }
+  });
+
+  // Anomaly score donut
+  const anomCtx = document.getElementById('anomalyScore').getContext('2d');
+  APP.charts.anomaly = new Chart(anomCtx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [0, 100],
+        backgroundColor: ['rgba(255,107,53,0.8)', 'rgba(255,255,255,0.04)'],
+        borderColor: ['#ff6b35', 'transparent'],
+        borderWidth: [2, 0],
+      }]
+    },
+    options: {
+      responsive: false,
+      cutout: '78%',
+      animation: { duration: 600 },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } }
+    }
+  });
+}
+
+/* Gauge drawing function using canvas arc */
+function drawGauge(canvasId, value, min=20, max=100) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  const cx = w/2, cy = h*0.82;
+  const r = Math.min(w,h)*0.75;
+  const startA = Math.PI, endA = 2*Math.PI;
+  const pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  const valA = startA + pct*(endA - startA);
+
+  // Severity color
+  const color = Analytics.tempColor(value);
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startA, endA);
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Zone arcs
+  const zones = [
+    { from: 0,    to: (CONFIG.THRESH.NORMAL-min)/(max-min),  color: 'rgba(0,255,136,0.3)' },
+    { from: (CONFIG.THRESH.NORMAL-min)/(max-min),  to: (CONFIG.THRESH.MONITOR-min)/(max-min), color: 'rgba(255,215,0,0.3)' },
+    { from: (CONFIG.THRESH.MONITOR-min)/(max-min), to: (CONFIG.THRESH.WARNING-min)/(max-min), color: 'rgba(255,107,53,0.3)' },
+    { from: (CONFIG.THRESH.WARNING-min)/(max-min), to: 1, color: 'rgba(255,34,68,0.3)' },
+  ];
+  zones.forEach(z => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startA + z.from*(endA-startA), startA + z.to*(endA-startA));
+    ctx.strokeStyle = z.color;
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'butt';
+    ctx.stroke();
+  });
+
+  // Value arc (glow effect)
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startA, valA);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  // Needle
+  const needleA = startA + pct*(endA-startA);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(needleA - Math.PI/2);
+  ctx.beginPath();
+  ctx.moveTo(0, 6);
+  ctx.lineTo(0, -r*0.85);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, 5, 0, Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.restore();
+}
+
+/* ============================================================
+   6. RENDER FUNCTIONS
+============================================================ */
+
+/* ---- Summary Cards ---- */
+function renderSummary(data) {
+  const hotspot = Analytics.hotspot(data);
+  const avgAll  = Analytics.avgAll(data);
+  const trafos  = [2,3,4];
+  let totalAnom = 0;
+  let totalHI = 0;
+  trafos.forEach(t => {
+    const s = Analytics.anomalyScore(data, t);
+    if (s > 40) totalAnom++;
+    const lt = Analytics.latest(data, t);
+    if (lt) {
+      const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+      totalHI += Analytics.healthIndex(maxT);
+    }
+  });
+  const avgHI = Math.round(totalHI / trafos.length);
+
+  const summaries = [
+    { icon: '🔌', label: 'Total PMT Monitored', value: '18', sub: '3 Trafo × 6 Channel', accent: 'var(--cyan)' },
+    { icon: '🌡️', label: 'Average Temperature', value: `${avgAll}°C`, sub: 'All channels', accent: 'var(--cyan)' },
+    { icon: '🔥', label: 'Highest Hotspot', value: `${hotspot.val}°C`, sub: hotspot.label, accent: Analytics.tempColor(hotspot.val) },
+    { icon: '⚠️', label: 'Anomaly Detected', value: `${totalAnom}`, sub: 'Equipment flagged', accent: totalAnom > 0 ? 'var(--orange)' : 'var(--green)' },
+    { icon: '📉', label: 'Avg Aging Factor', value: `${Analytics.agingFactor(avgAll).toFixed(2)}x`, sub: 'IEEE C57.91 basis', accent: 'var(--yellow)' },
+    { icon: '💚', label: 'Avg Health Index', value: `${avgHI}`, sub: Analytics.statusLabel(avgHI), accent: avgHI >= 65 ? 'var(--green)' : avgHI >= 50 ? 'var(--yellow)' : 'var(--red)' },
+  ];
+
+  const container = document.getElementById('summary-cards');
+  container.innerHTML = summaries.map(s => `
+    <div class="summary-card" style="--accent:${s.accent};">
+      <div class="summary-icon">${s.icon}</div>
+      <div class="summary-info">
+        <div class="s-label">${s.label}</div>
+        <div class="s-value" style="color:${s.accent};">${s.value}</div>
+        <div class="s-sub">${s.sub}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ---- Gauges ---- */
+function renderGauges(data, trafo) {
+  const lt = Analytics.latest(data, trafo);
+  if (!lt) return;
+  document.getElementById('gauge-trafo-label').textContent = `TRAFO ${trafo}`;
+
+  const channels = [
+    { id: 'R', atas: lt.r_atas, bawah: lt.r_bawah },
+    { id: 'S', atas: lt.s_atas, bawah: lt.s_bawah },
+    { id: 'T', atas: lt.t_atas, bawah: lt.t_bawah },
+  ];
+
+  const grid = document.getElementById('gauge-grid');
+  grid.innerHTML = channels.map(ch => {
+    const maxT = Math.max(ch.atas, ch.bawah);
+    const color = Analytics.tempColor(maxT);
+    const sev   = Analytics.severity(maxT);
+    return `
+      <div class="gauge-wrap">
+        <div class="gauge-title">Fasa ${ch.id}</div>
+        <div class="gauge-canvas-wrap">
+          <canvas id="gauge_t${trafo}_${ch.id}" width="130" height="90"></canvas>
+          <div class="gauge-center-val">
+            <span class="gauge-temp" style="color:${color};">${maxT.toFixed(1)}</span>
+            <span class="gauge-unit">°C</span>
+          </div>
+        </div>
+        <div class="gauge-meta">
+          <div class="gauge-meta-item">
+            <div class="gm-label">Atas</div>
+            <div class="gm-val">${ch.atas.toFixed(1)}</div>
+          </div>
+          <div class="gauge-meta-item">
+            <div class="gm-label">Bawah</div>
+            <div class="gm-val">${ch.bawah.toFixed(1)}</div>
+          </div>
+          <div class="gauge-meta-item">
+            <div class="gm-label">ΔAB</div>
+            <div class="gm-val" style="color:${Analytics.deltaAB(ch.atas,ch.bawah) > 8 ? 'var(--orange)' : 'inherit'};">${Analytics.deltaAB(ch.atas,ch.bawah).toFixed(1)}</div>
+          </div>
+        </div>
+        <div style="margin-top:6px;"><span class="pill ${sev}">${sev.toUpperCase()}</span></div>
+      </div>
+    `;
+  }).join('');
+
+  // Draw canvas gauges after DOM update
+  requestAnimationFrame(() => {
+    channels.forEach(ch => {
+      drawGauge(`gauge_t${trafo}_${ch.id}`, Math.max(ch.atas, ch.bawah));
+    });
+  });
+
+  // Delta indicators
+  const dp = Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas);
+  const phases = [
+    { id: 'R', color: '#00d4ff', val: lt.r_atas },
+    { id: 'S', color: '#ff6b35', val: lt.s_atas },
+    { id: 'T', color: '#ffd700', val: lt.t_atas },
+  ];
+  document.getElementById('delta-grid').innerHTML = `
+    ${phases.map(p => `
+      <div class="delta-box">
+        <div class="db-phase" style="color:${p.color};">${p.id}</div>
+        <div class="db-label">Phase Temp</div>
+        <div class="db-val">${p.val.toFixed(1)}°C</div>
+      </div>
+    `).join('')}
+    <div class="delta-box" style="grid-column:1/-1;background:${dp>10?'rgba(255,107,53,0.08)':'rgba(0,255,136,0.04)'};">
+      <div class="db-label">ΔPhase Imbalance</div>
+      <div class="db-val" style="color:${dp>10?'var(--orange)':dp>5?'var(--yellow)':'var(--green)'}; font-size:18px;">${dp.toFixed(1)}°C</div>
+    </div>
+  `;
+}
+
+/* ---- Trend Chart ---- */
+function renderTrend(data, trafo) {
+  const t = `t${trafo}`;
+  const slice = data.slice(-CONFIG.MAX_TREND_POINTS);
+  const labels = slice.map(d => {
+    const dt = new Date(d.timestamp);
+    return `${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+  });
+
+  const rAtasData  = slice.map(d => d[`${t}_r_atas`]);
+  const sBawahData = slice.map(d => d[`${t}_s_bawah`]);
+  const sAtasData  = slice.map(d => d[`${t}_s_atas`]);
+  const tAtasData  = slice.map(d => d[`${t}_t_atas`]);
+  const rMAData    = Analytics.movingAverage(rAtasData);
+
+  const datasets = [
+    {
+      label: 'R Atas',
+      data: rAtasData,
+      borderColor: '#00d4ff',
+      backgroundColor: 'rgba(0,212,255,0.05)',
+      borderWidth: 2,
+      tension: 0.4,
+      fill: true,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      hidden: !APP.trendVisibility.R,
+    },
+    {
+      label: 'S Atas',
+      data: sAtasData,
+      borderColor: '#ff6b35',
+      backgroundColor: 'rgba(255,107,53,0.04)',
+      borderWidth: 2,
+      tension: 0.4,
+      fill: false,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      hidden: !APP.trendVisibility.S,
+    },
+    {
+      label: 'T Atas',
+      data: tAtasData,
+      borderColor: '#ffd700',
+      backgroundColor: 'rgba(255,215,0,0.04)',
+      borderWidth: 2,
+      tension: 0.4,
+      fill: false,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      hidden: !APP.trendVisibility.T,
+    },
+    {
+      label: 'S Bawah',
+      data: sBawahData,
+      borderColor: 'rgba(255,107,53,0.4)',
+      borderWidth: 1.2,
+      tension: 0.4,
+      borderDash: [4,3],
+      fill: false,
+      pointRadius: 0,
+      pointHoverRadius: 3,
+      hidden: !APP.trendVisibility.S,
+    },
+    {
+      label: 'R MA(5)',
+      data: rMAData,
+      borderColor: 'rgba(0,212,255,0.3)',
+      borderWidth: 1,
+      borderDash: [6,3],
+      tension: 0.4,
+      fill: false,
+      pointRadius: 0,
+      hidden: !APP.trendVisibility.R,
+    },
+  ];
+
+  APP.charts.trend.data.labels = labels;
+  APP.charts.trend.data.datasets = datasets;
+  APP.charts.trend.update();
+}
+
+/* ---- Aging Analytics ---- */
+function renderAging(data) {
+  const trafos = [2,3,4];
+  const afValues = trafos.map(t => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) return 1;
+    const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+    return +Analytics.agingFactor(maxT).toFixed(3);
+  });
+
+  APP.charts.aging.data.datasets[0].data = afValues;
+  APP.charts.aging.update();
+
+  // Aging stats panel
+  const overallAF = afValues.reduce((a,b)=>a+b,0)/3;
+  const overallHI = trafos.reduce((sum,t) => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) return sum;
+    return sum + Analytics.healthIndex(Math.max(lt.r_atas, lt.s_atas, lt.t_atas));
+  }, 0) / 3;
+
+  document.getElementById('aging-stats').innerHTML = `
+    <div class="aging-row"><span class="aging-label">Avg Aging Factor</span><span class="aging-value ${overallAF>2?'warn':''}">${overallAF.toFixed(3)}x</span></div>
+    <div class="aging-row"><span class="aging-label">Avg Health Index</span><span class="aging-value ${overallHI<65?'warn':''}">${Math.round(overallHI)}/100</span></div>
+    <div class="aging-row"><span class="aging-label">Thermal Stress</span><span class="aging-value ${overallAF>3?'crit':overallAF>1.5?'warn':''}">${overallAF>3?'HIGH':overallAF>1.5?'MODERATE':'LOW'}</span></div>
+    <div class="aging-row"><span class="aging-label">Deg. Risk Level</span><span class="aging-value ${overallHI<65?'warn':''}">${Analytics.statusLabel(Math.round(overallHI))}</span></div>
+  `;
+
+  // Aging progress bars per trafo
+  document.getElementById('aging-bars').innerHTML = trafos.map((t, i) => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) return '';
+    const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+    const hi = Analytics.healthIndex(maxT);
+    const af = Analytics.agingFactor(maxT);
+    const barColor = hi >= 80 ? 'var(--green)' : hi >= 65 ? 'var(--yellow)' : hi >= 50 ? 'var(--orange)' : 'var(--red)';
+    const colors = ['#00d4ff','#ff6b35','#ffd700'];
+    return `
+      <div class="progress-bar-wrap">
+        <div class="progress-label">
+          <span style="color:${colors[i]}">Trafo ${t} · HI</span>
+          <span class="p-val">${hi}/100 (AF: ${af.toFixed(2)}x)</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:${hi}%; background:${barColor};"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+/* ---- AI Anomaly ---- */
+function renderAnomalyDetection(data) {
+  const trafos = [2,3,4];
+  const results = [];
+
+  trafos.forEach(t => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) return;
+    const score = Analytics.anomalyScore(data, t);
+
+    // Determine anomaly types
+    const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+    const phaseImbal = Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas);
+    const maxDeltaAB = Math.max(
+      Analytics.deltaAB(lt.r_atas, lt.r_bawah),
+      Analytics.deltaAB(lt.s_atas, lt.s_bawah),
+      Analytics.deltaAB(lt.t_atas, lt.t_bawah),
+    );
+
+    let type = 'Normal Thermal Pattern';
+    let action = 'Continue Monitoring';
+    if (maxT > CONFIG.THRESH.WARNING && maxDeltaAB > 10) { type = 'Potential Contact Resistance Detected'; action = 'Inspect Contact Resistance'; }
+    else if (phaseImbal > 15) { type = 'Abnormal Thermal Pattern'; action = 'Perform Thermovision'; }
+    else if (maxT > CONFIG.THRESH.WARNING) { type = 'Hotspot Escalation'; action = 'Schedule Shutdown Inspection'; }
+    else if (score > 20) { type = 'Monitor Thermal Escalation'; action = 'Increase Monitoring Frequency'; }
+
+    results.push({
+      equipment: `Trafo ${t} PMT Incoming`,
+      type, score, dt: maxDeltaAB,
+      status: Analytics.severity(maxT),
+      action,
+    });
+  });
+
+  // Sort by score desc
+  results.sort((a,b) => b.score - a.score);
+
+  const maxScore = results.reduce((m,r) => Math.max(m,r.score),0);
+  const totalAnom = results.filter(r => r.score > 40).length;
+  const totalWarn = results.filter(r => r.score > 15 && r.score <= 40).length;
+
+  // Update score ring
+  APP.charts.anomaly.data.datasets[0].data = [maxScore, 100-maxScore];
+  APP.charts.anomaly.update();
+  document.getElementById('anomaly-score-val').textContent = maxScore;
+  document.getElementById('anom-count').textContent = totalAnom;
+  document.getElementById('anom-warning').textContent = totalWarn;
+
+  const badge = document.getElementById('anomaly-badge');
+  if (maxScore > 40)      { badge.textContent='ANOMALY DETECTED'; badge.style.background='rgba(255,34,68,0.15)'; badge.style.color='#ff2244'; badge.style.border='1px solid rgba(255,34,68,0.3)'; }
+  else if (maxScore > 20) { badge.textContent='WARNING'; badge.style.background='rgba(255,107,53,0.12)'; badge.style.color='#ff6b35'; badge.style.border='1px solid rgba(255,107,53,0.3)'; }
+  else                    { badge.textContent='NORMAL'; badge.style.background='rgba(0,255,136,0.1)'; badge.style.color='#00ff88'; badge.style.border='1px solid rgba(0,255,136,0.2)'; }
+
+  // Anomaly table
+  document.getElementById('anomaly-tbody').innerHTML = results.map(r => `
+    <tr>
+      <td style="font-family:var(--font-mono);font-size:11px;color:var(--cyan);">${r.equipment}</td>
+      <td style="font-size:11px;">${r.type}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+            <div style="width:${r.score}%;height:100%;background:${r.score>40?'var(--red)':r.score>20?'var(--orange)':'var(--green)'}; border-radius:2px;"></div>
+          </div>
+          <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-primary);min-width:28px;">${r.score}</span>
+        </div>
+      </td>
+      <td style="font-family:var(--font-mono);font-size:11px;color:${r.dt>10?'var(--orange)':'var(--text-secondary)'};">${r.dt.toFixed(1)}°C</td>
+      <td><span class="pill ${r.status}">${r.status.toUpperCase()}</span></td>
+      <td style="font-size:11px;color:var(--text-secondary);">${r.action}</td>
+    </tr>
+  `).join('');
+}
+
+/* ---- Phase Radar ---- */
+function renderPhaseRadar(data) {
+  const trafos = [2,3,4];
+  const atasData = [];
+  const bawahData = [];
+
+  trafos.forEach(t => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) { atasData.push(0,0,0); bawahData.push(0,0,0); return; }
+    atasData.push(lt.r_atas, lt.s_atas, lt.t_atas);
+    bawahData.push(lt.r_bawah, lt.s_bawah, lt.t_bawah);
+  });
+
+  APP.charts.radar.data.datasets[0].data = atasData;
+  APP.charts.radar.data.datasets[1].data = bawahData;
+  APP.charts.radar.update();
+
+  // Phase imbalance panel
+  let html = '';
+  trafos.forEach(t => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) return;
+    const dp = Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas);
+    const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+    html += `
+      <div class="aging-row">
+        <span class="aging-label">Trafo ${t} · ΔPhase</span>
+        <span class="aging-value ${dp>15?'crit':dp>8?'warn':''}">${dp.toFixed(1)}°C</span>
+      </div>
+      <div class="aging-row">
+        <span class="aging-label">Trafo ${t} · MaxTemp</span>
+        <span class="aging-value ${Analytics.severity(maxT)!=='normal'?Analytics.severity(maxT)==='critical'?'crit':'warn':''}">${maxT.toFixed(1)}°C</span>
+      </div>
+    `;
+  });
+  document.getElementById('phase-imbalance').innerHTML = html;
+}
+
+/* ---- Thermal Heatmap ---- */
+function renderHeatmap(data) {
+  const trafos = [2,3,4];
+  const phases = ['R','S','T'];
+
+  let html = '';
+  trafos.forEach(t => {
+    const lt = Analytics.latest(data, t);
+    const keys = { R: ['r_atas','r_bawah'], S: ['s_atas','s_bawah'], T: ['t_atas','t_bawah'] };
+
+    html += `<div style="margin-bottom:12px;">`;
+    html += `<div style="font-family:var(--font-display);font-size:9px;letter-spacing:2px;color:var(--text-muted);margin-bottom:6px;">TRAFO ${t}</div>`;
+    html += `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;">`;
+
+    phases.forEach(p => {
+      ['Atas','Bawah'].forEach(side => {
+        const key = keys[p][side==='Atas'?0:1];
+        const val = lt ? (lt[key] || 0) : 0;
+        const sev = Analytics.severity(val);
+        html += `
+          <div class="heatmap-cell hm-${sev}">
+            <span class="cell-label">T${t}-${p} ${side}</span>
+            <span class="cell-val">${val.toFixed(1)}°</span>
+          </div>
+        `;
+      });
+    });
+
+    html += `</div></div>`;
+  });
+
+  document.getElementById('heatmap-container').innerHTML = html;
+}
+
+/* ---- Health Index Table ---- */
+function renderHealthIndex(data) {
+  const trafos = [2,3,4];
+  const phases = ['R','S','T'];
+  const rows = [];
+
+  trafos.forEach(t => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) return;
+    phases.forEach(p => {
+      const k = p.toLowerCase();
+      const maxT = Math.max(lt[`${k}_atas`], lt[`${k}_bawah`]);
+      const hi = Analytics.healthIndex(maxT);
+      const af = +Analytics.agingFactor(maxT).toFixed(3);
+      const status = Analytics.statusLabel(hi);
+      rows.push({ label: `Trafo ${t} Fasa ${p}`, hi, af, status, temp: maxT });
+    });
+  });
+
+  // Sort worst first
+  rows.sort((a,b) => a.hi - b.hi);
+
+  document.getElementById('hi-tbody').innerHTML = rows.map((r,i) => {
+    const barColor = r.hi >= 80 ? 'var(--green)' : r.hi >= 65 ? 'var(--yellow)' : r.hi >= 50 ? 'var(--orange)' : 'var(--red)';
+    return `
+      <tr>
+        <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);">${i+1}</td>
+        <td style="font-size:13px;">${r.label}<br><span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">${r.temp.toFixed(1)}°C</span></td>
+        <td>
+          <div class="hi-bar-wrap">
+            <div class="hi-bar-track"><div class="hi-bar-fill" style="width:${r.hi}%;background:${barColor};"></div></div>
+            <span class="hi-val" style="color:${barColor};">${r.hi}</span>
+          </div>
+        </td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${r.af}x</td>
+        <td><span class="pill ${r.status==='Excellent'?'normal':r.status==='Good'?'monitor':r.status==='Warning'?'warning':'critical'}">${r.status}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/* ---- Predictive Maintenance ---- */
+function renderMaintenance(data) {
+  const trafos = [2,3,4];
+  const recs = [];
+
+  trafos.forEach(t => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) return;
+    const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+    const score = Analytics.anomalyScore(data, t);
+    const af = Analytics.agingFactor(maxT);
+    const phaseImbal = Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas);
+    const maxDeltaAB = Math.max(
+      Analytics.deltaAB(lt.r_atas, lt.r_bawah),
+      Analytics.deltaAB(lt.s_atas, lt.s_bawah),
+      Analytics.deltaAB(lt.t_atas, lt.t_bawah),
+    );
+
+    if (maxT > CONFIG.THRESH.WARNING) {
+      recs.push({ priority:'p1', action:'Shutdown Inspection Required', reason:`Suhu kritis ${maxT.toFixed(1)}°C melebihi threshold ${CONFIG.THRESH.WARNING}°C`, target:`Trafo ${t}` });
+    }
+    if (maxDeltaAB > 12) {
+      recs.push({ priority:'p1', action:'Inspect Contact Resistance', reason:`ΔAtas-Bawah tinggi: ${maxDeltaAB.toFixed(1)}°C — indikasi contact fault`, target:`Trafo ${t}` });
+    }
+    if (phaseImbal > 15) {
+      recs.push({ priority:'p2', action:'Perform Thermovision Scanning', reason:`Phase imbalance: ${phaseImbal.toFixed(1)}°C — pola termal abnormal`, target:`Trafo ${t}` });
+    }
+    if (maxT > CONFIG.THRESH.MONITOR && maxT <= CONFIG.THRESH.WARNING) {
+      recs.push({ priority:'p2', action:'Monitor Thermal Escalation', reason:`Suhu elevated ${maxT.toFixed(1)}°C — pantau eskalasi`, target:`Trafo ${t}` });
+    }
+    if (af > 2.5) {
+      recs.push({ priority:'p3', action:'Schedule Maintenance Window', reason:`Aging Factor ${af.toFixed(2)}x — akselerasi degradasi terdeteksi`, target:`Trafo ${t}` });
+    }
+    if (score > 20 && score <= 40) {
+      recs.push({ priority:'p3', action:'Increase Monitoring Frequency', reason:`Anomaly score ${score}/100 — tingkatkan frekuensi pengukuran`, target:`Trafo ${t}` });
+    }
+  });
+
+  // Default if all normal
+  if (recs.length === 0) {
+    recs.push({ priority:'p4', action:'Continue Scheduled Monitoring', reason:'Semua parameter dalam batas normal', target:'All Trafo' });
+    recs.push({ priority:'p4', action:'Log and Archive Data', reason:'Rekam data historis untuk trending', target:'System' });
+  }
+
+  // Sort by priority
+  const order = { p1:0, p2:1, p3:2, p4:3 };
+  recs.sort((a,b) => order[a.priority] - order[b.priority]);
+
+  document.getElementById('maintenance-recs').innerHTML = recs.map(r => `
+    <div class="rec-item">
+      <div class="rec-priority ${r.priority}">${r.priority.replace('p','').toUpperCase()}</div>
+      <div class="rec-content">
+        <div class="rec-action">${r.action}</div>
+        <div class="rec-reason">${r.reason}</div>
+        <div class="rec-target">▸ ${r.target}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ---- System Status Badge ---- */
+function updateSystemStatus(data) {
+  const trafos = [2,3,4];
+  let worstSev = 'normal';
+  trafos.forEach(t => {
+    const lt = Analytics.latest(data, t);
+    if (!lt) return;
+    const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+    const s = Analytics.severity(maxT);
+    if (s === 'critical') worstSev = 'critical';
+    else if (s === 'warning' && worstSev !== 'critical') worstSev = 'warning';
+    else if (s === 'monitor' && worstSev === 'normal') worstSev = 'monitor';
+  });
+
+  const badge = document.getElementById('status-badge');
+  const text  = document.getElementById('status-text');
+  badge.className = `status-badge ${worstSev === 'normal' || worstSev === 'monitor' ? 'online' : worstSev === 'warning' ? 'warning' : 'critical'}`;
+  text.textContent = worstSev === 'normal' ? 'ONLINE' : worstSev === 'monitor' ? 'MONITOR' : worstSev === 'warning' ? 'WARNING' : 'CRITICAL';
+}
+
+/* ============================================================
+   7. MASTER RENDER
+============================================================ */
+function renderAll(data) {
+  if (!data || !data.length) return;
+  renderSummary(data);
+  renderGauges(data, APP.activeGaugeTrafo);
+  renderTrend(data, APP.activeTrendTrafo);
+  renderAging(data);
+  renderAnomalyDetection(data);
+  renderPhaseRadar(data);
+  renderHeatmap(data);
+  renderHealthIndex(data);
+  renderMaintenance(data);
+  updateSystemStatus(data);
+
+  // Update data info
+  const last = data[data.length-1];
+  const ldt  = new Date(last.timestamp);
+  const fmt  = `${ldt.toLocaleDateString('id-ID')} ${ldt.toLocaleTimeString('id-ID')}`;
+  document.getElementById('last-update').textContent = `Update: ${fmt}`;
+  document.getElementById('conn-points').textContent = `DATAPOINTS: ${data.length}`;
+  document.getElementById('conn-latency').textContent = APP.usingDummy ? 'MODE: SIMULASI' : 'LATENCY: <200ms';
+}
+
+/* ============================================================
+   8. DATA FETCH
+============================================================ */
+async function fetchAndRender() {
+  const t0 = Date.now();
+  try {
+    const url = buildSheetURL();
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.text();
+    const parsed = parseGvizResponse(raw);
+    if (!parsed.success || !parsed.rows.length) throw new Error('No data');
+    APP.data = parsed.rows.map(mapSheetRow).filter(r => r.timestamp);
+    APP.usingDummy = false;
+    document.getElementById('conn-source').textContent = 'DATASOURCE: GOOGLE SHEETS ✓';
+    console.log(`[THERMAL] Loaded ${APP.data.length} rows from Sheet in ${Date.now()-t0}ms`);
+  } catch (e) {
+    console.warn('[THERMAL] Sheet load failed, using simulation:', e.message);
+    APP.data = generateDummyData();
+    APP.usingDummy = true;
+    document.getElementById('conn-source').textContent = 'DATASOURCE: SIMULASI (sheet unavailable)';
+  }
+  renderAll(APP.data);
+}
+
+/* ============================================================
+   9. INTERACTIVE CONTROLS
+============================================================ */
+function setGaugeTrafo(num, btn) {
+  APP.activeGaugeTrafo = num;
+  document.querySelectorAll('#gauge-grid').forEach(() => {});
+  btn.closest('.chart-controls').querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGauges(APP.data, num);
+}
+
+function setTrendTrafo(num, btn) {
+  APP.activeTrendTrafo = num;
+  btn.closest('.chart-controls').querySelectorAll('.ctrl-btn:not([id^="btn-"])').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTrend(APP.data, num);
+}
+
+function toggleSeries(phase, btn) {
+  APP.trendVisibility[phase] = !APP.trendVisibility[phase];
+  btn.classList.toggle('active');
+  // Update chart dataset visibility
+  APP.charts.trend.data.datasets.forEach(ds => {
+    if (ds.label && ds.label.startsWith(phase)) {
+      ds.hidden = !APP.trendVisibility[phase];
+    }
+  });
+  APP.charts.trend.update();
+}
+
+/* ============================================================
+   10. CLOCK
+============================================================ */
+function startClock() {
+  function tick() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+    document.getElementById('date-display').textContent =
+      now.toLocaleDateString('id-ID', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ============================================================
+   11. BOOT SEQUENCE
+============================================================ */
+const BOOT_MESSAGES = [
+  'INITIALIZING SENSORS...',
+  'LOADING THERMAL ENGINE...',
+  'CONNECTING TO SPREADSHEET...',
+  'CALIBRATING AI MODELS...',
+  'RENDERING DASHBOARD...',
+];
+let bootStep = 0;
+const bootInterval = setInterval(() => {
+  bootStep++;
+  const el = document.getElementById('loader-status');
+  if (el && BOOT_MESSAGES[bootStep]) el.textContent = BOOT_MESSAGES[bootStep];
+  if (bootStep >= BOOT_MESSAGES.length) clearInterval(bootInterval);
+}, 300);
+
+document.addEventListener('DOMContentLoaded', async () => {
+  startClock();
+  initCharts();
+
+  // Load dummy data immediately so something shows
+  APP.data = generateDummyData();
+  renderAll(APP.data);
+
+  // Then try real sheet
+  await fetchAndRender();
+
+  // Hide loader
+  setTimeout(() => {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.add('hidden');
+    setTimeout(() => { if (overlay) overlay.remove(); }, 700);
+  }, 1600);
+
+  // Auto-refresh
+  APP.refreshTimer = setInterval(fetchAndRender, CONFIG.REFRESH_INTERVAL);
+  document.getElementById('conn-interval').textContent = `AUTO-REFRESH: ${CONFIG.REFRESH_INTERVAL/1000}s`;
+});
+</script>
+</body>
+</html>
