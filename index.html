@@ -2907,7 +2907,7 @@ function fetchJsonp(url) {
 
 /* Lightweight check — only reads last row */
 async function checkForNewData() {
-  if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) return;
+  if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.includes('https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec')) return;
   if (POLL.isFetching) return;
   try {
     const d = await fetchJsonp(CONFIG.APPS_SCRIPT_URL + '?mode=check');
@@ -2927,7 +2927,7 @@ async function fetchAndRender() {
   POLL.isFetching = true;
   const t0 = Date.now();
 
-  if (CONFIG.APPS_SCRIPT_URL && !CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) {
+  if (CONFIG.APPS_SCRIPT_URL && !CONFIG.APPS_SCRIPT_URL.includes('https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec')) {
     try {
       const d = await fetchJsonp(CONFIG.APPS_SCRIPT_URL + '?mode=full');
       if (!d || d.status !== 'ok' || !d.data || !d.data.length) throw new Error(d ? d.message : 'empty');
