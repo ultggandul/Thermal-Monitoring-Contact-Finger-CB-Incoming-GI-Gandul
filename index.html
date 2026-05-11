@@ -978,6 +978,69 @@
       letter-spacing: 0.5px;
     }
 
+
+    /* Settings Panel */
+    #settings-overlay {
+      display:none; position:fixed; inset:0; z-index:9998;
+      background:rgba(0,0,0,0.7); backdrop-filter:blur(4px);
+    }
+    #settings-overlay.show { display:flex; align-items:center; justify-content:center; }
+    #settings-panel {
+      background:#172035; border:1px solid rgba(0,212,255,0.25);
+      border-radius:12px; padding:28px 32px; width:560px; max-width:95vw;
+      box-shadow:0 20px 60px rgba(0,0,0,0.6);
+    }
+    #settings-panel h2 {
+      font-family:var(--font-body); font-size:16px; font-weight:700;
+      color:var(--text-primary); margin-bottom:20px;
+    }
+    .settings-field { margin-bottom:16px; }
+    .settings-field label {
+      display:block; font-size:11px; font-weight:600; text-transform:uppercase;
+      letter-spacing:0.5px; color:var(--text-muted); margin-bottom:6px;
+    }
+    .settings-field input {
+      width:100%; font-family:var(--font-mono); font-size:12px;
+      background:rgba(0,0,0,0.3); border:1px solid rgba(0,212,255,0.2);
+      color:var(--text-primary); padding:9px 12px; border-radius:5px; outline:none;
+      transition:border-color .2s;
+    }
+    .settings-field input:focus { border-color:rgba(0,212,255,0.6); }
+    .settings-hint {
+      font-size:10px; color:var(--text-muted); margin-top:5px; line-height:1.5;
+    }
+    .settings-hint code {
+      background:rgba(0,212,255,0.1); padding:1px 5px; border-radius:3px;
+      color:var(--cyan); font-family:var(--font-mono);
+    }
+    .settings-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:24px; }
+    .btn-primary {
+      font-family:var(--font-body); font-size:13px; font-weight:600;
+      padding:8px 20px; border-radius:5px; cursor:pointer; border:none;
+      background:var(--cyan); color:#05080f; transition:opacity .2s;
+    }
+    .btn-primary:hover { opacity:0.85; }
+    .btn-secondary {
+      font-family:var(--font-body); font-size:13px; font-weight:600;
+      padding:8px 20px; border-radius:5px; cursor:pointer;
+      background:transparent; border:1px solid rgba(255,255,255,0.15);
+      color:var(--text-secondary); transition:all .2s;
+    }
+    .btn-secondary:hover { border-color:rgba(255,255,255,0.3); color:var(--text-primary); }
+    .settings-status {
+      margin-top:12px; padding:8px 12px; border-radius:5px; font-size:12px;
+      font-family:var(--font-mono); display:none;
+    }
+    .settings-status.ok  { background:rgba(0,255,136,0.1); color:var(--green); border:1px solid rgba(0,255,136,0.2); display:block; }
+    .settings-status.err { background:rgba(255,34,68,0.1); color:var(--red); border:1px solid rgba(255,34,68,0.2); display:block; }
+    /* Settings button in conn-bar */
+    .cb-settings {
+      padding:2px 10px; border:1px solid rgba(255,255,255,0.12); border-radius:3px;
+      background:transparent; color:var(--text-muted); cursor:pointer;
+      font-family:var(--font-mono); font-size:10px; transition:all .2s; margin-left:6px;
+    }
+    .cb-settings:hover { border-color:rgba(0,212,255,0.3); color:var(--cyan); }
+
   </style>
 </head>
 
@@ -1038,6 +1101,7 @@
     <div class="cb-item"><span id="conn-interval">AUTO-REFRESH: 60s</span></div>
     <div class="cb-item"><span id="conn-latency">LATENCY: --</span></div>
     <button class="cb-refresh" onclick="fetchAndRender()">⟳ REFRESH</button>
+    <button class="cb-settings" onclick="openSettings()">⚙ SETTINGS</button>
   </div>
 
 
@@ -1392,6 +1456,51 @@
     </div>
   </footer>
 
+
+  <!-- SETTINGS PANEL -->
+  <div id="settings-overlay">
+    <div id="settings-panel">
+      <h2>⚙ Konfigurasi Sumber Data</h2>
+
+      <div class="settings-field">
+        <label>Google Apps Script URL <span style="color:var(--green)">(Direkomendasikan)</span></label>
+        <input type="text" id="cfg-apps-script-url"
+               placeholder="https://script.google.com/macros/s/AKfy.../exec" />
+        <div class="settings-hint">
+          Deploy Google Apps Script → copy URL → paste di sini.<br>
+          Ini adalah cara terbaik — CORS aman, timestamp valid, data lengkap.
+        </div>
+      </div>
+
+      <div class="settings-field">
+        <label>Google Sheets ID <span style="color:var(--text-muted)">(Fallback)</span></label>
+        <input type="text" id="cfg-sheet-id"
+               placeholder="1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE" />
+        <div class="settings-hint">
+          ID spreadsheet dari URL: <code>docs.google.com/spreadsheets/d/<b>ID_DI_SINI</b>/edit</code>
+        </div>
+      </div>
+
+      <div class="settings-field">
+        <label>Nama Sheet / Tab</label>
+        <input type="text" id="cfg-sheet-name" placeholder="Sheet1" />
+      </div>
+
+      <div class="settings-field">
+        <label>Auto Refresh (detik)</label>
+        <input type="number" id="cfg-refresh" min="10" max="300" placeholder="60" />
+      </div>
+
+      <div id="settings-status-msg" class="settings-status"></div>
+
+      <div class="settings-actions">
+        <button class="btn-secondary" onclick="closeSettings()">Batal</button>
+        <button class="btn-secondary" onclick="testConnection()" style="border-color:rgba(0,212,255,0.3);color:var(--cyan);">Test Koneksi</button>
+        <button class="btn-primary" onclick="saveSettings()">Simpan & Refresh</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- end page-wrapper -->
 
 
@@ -1403,23 +1512,23 @@
 /* ============================================================
    0. CONFIGURATION — Edit this section for deployment
 ============================================================ */
-const CONFIG = {
-  // ── Google Sheets ID (tidak perlu diubah) ──────────────────
-  SHEET_ID: '1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE',
-  SHEET_NAME: 'Sheet1',
-
-  // ── Apps Script Web App URL ────────────────────────────────
-  // Setelah deploy Google Apps Script, paste URL-nya di sini:
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/library/d/1xzrFnw3iYvl6rFsr-BSfZ_8bN-BCIs3zqoyPpEMoo855KNAf2Z_NwQyE/5',   // contoh: 'https://script.google.com/macros/s/AKfy.../exec'
-
-  // ── Auto-refresh interval ──────────────────────────────────
-  REFRESH_INTERVAL: 60000,
-
-  // ── Chart & analytics settings ────────────────────────────
-  MAX_TREND_POINTS: 48,
-  THRESH: { NORMAL: 55, MONITOR: 65, WARNING: 75 },
-  AGING_REF_TEMP: 40,
-};
+// ── CONFIG — load dari localStorage jika ada ─────────────────
+const CONFIG = (function() {
+  const stored = {};
+  try {
+    const s = localStorage.getItem('thermal_cfg');
+    if (s) Object.assign(stored, JSON.parse(s));
+  } catch(e) {}
+  return {
+    SHEET_ID        : stored.SHEET_ID         || '1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE',
+    SHEET_NAME      : stored.SHEET_NAME       || 'Sheet1',
+    APPS_SCRIPT_URL : stored.APPS_SCRIPT_URL  || '',
+    REFRESH_INTERVAL: (stored.REFRESH_INTERVAL || 60) * 1000,
+    MAX_TREND_POINTS: 48,
+    THRESH          : { NORMAL: 55, MONITOR: 65, WARNING: 75 },
+    AGING_REF_TEMP  : 40,
+  };
+})();
 
 /* ── URL builders ────────────────────────────────────────────*/
 function buildSheetURL() {
@@ -2737,56 +2846,87 @@ function renderAll(data) {
 ============================================================ */
 async function fetchAndRender() {
   const t0 = Date.now();
+  setConnStatus('loading');
 
-  // ── Strategy 1: Apps Script Web App (preferred) ───────────
-  if (CONFIG.APPS_SCRIPT_URL) {
+  // ── Priority 1: Google Apps Script (recommended) ──────────
+  if (CONFIG.APPS_SCRIPT_URL && CONFIG.APPS_SCRIPT_URL.startsWith('http')) {
     try {
-      const res = await fetch(CONFIG.APPS_SCRIPT_URL, { mode: 'cors' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const json = await res.json();
-      if (json.status !== 'ok' || !json.data || !json.data.length) throw new Error('Empty');
+      if (!json || json.status === 'error') throw new Error(json ? json.message : 'Bad response');
+      if (!json.data || json.data.length === 0) throw new Error('Data kosong dari Apps Script');
+
       APP.data = json.data.map(row => ({
         ...row,
         timestamp: parseSheetDate(row.timestamp),
-      }));
+      })).filter(r => r.timestamp && !isNaN(r.timestamp));
+
+      if (!APP.data.length) throw new Error('Semua timestamp invalid');
       APP.usingDummy = false;
-      document.getElementById('conn-source').textContent =
-        `DATASOURCE: APPS SCRIPT ✓ (${APP.data.length} rows)`;
-      document.getElementById('conn-latency').textContent =
-        `LATENCY: ${Date.now()-t0}ms`;
-      console.log(`[THERMAL] Apps Script: ${APP.data.length} rows in ${Date.now()-t0}ms`);
+
+      const ms = Date.now() - t0;
+      setConnStatus('ok', 'APPS SCRIPT', APP.data.length, ms);
       renderAll(APP.data);
       return;
     } catch (e) {
-      console.warn('[THERMAL] Apps Script failed:', e.message, '— trying gviz fallback');
+      console.warn('[THERMAL] Apps Script error:', e.message);
     }
   }
 
-  // ── Strategy 2: gviz/tq direct (fallback) ─────────────────
+  // ── Priority 2: Google Sheets gviz/tq (direct) ────────────
   try {
-    const url = buildSheetURL();
+    const url = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(CONFIG.SHEET_NAME)}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const raw  = await res.text();
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const raw = await res.text();
+
     const parsed = parseGvizResponse(raw);
-    if (!parsed.success || !parsed.rows.length) throw new Error('Parse failed / empty');
-    APP.data = parsed.rows.map(mapSheetRow).filter(r => r.timestamp && !isNaN(r.timestamp));
-    if (!APP.data.length) throw new Error('All rows had invalid timestamps');
+    if (!parsed.success) throw new Error('Parse gviz gagal');
+    if (!parsed.rows.length) throw new Error('Tidak ada baris data');
+
+    const mapped = parsed.rows.map(mapSheetRow).filter(r => r.timestamp && !isNaN(r.timestamp));
+    if (!mapped.length) throw new Error('Semua baris punya timestamp invalid');
+
+    APP.data = mapped;
     APP.usingDummy = false;
-    document.getElementById('conn-source').textContent =
-      `DATASOURCE: GOOGLE SHEETS ✓ (${APP.data.length} rows)`;
-    document.getElementById('conn-latency').textContent =
-      `LATENCY: ${Date.now()-t0}ms`;
-    console.log(`[THERMAL] gviz: ${APP.data.length} rows in ${Date.now()-t0}ms`);
+
+    const ms = Date.now() - t0;
+    setConnStatus('ok', 'GOOGLE SHEETS', APP.data.length, ms);
+    renderAll(APP.data);
+    return;
   } catch (e) {
-    console.warn('[THERMAL] All sources failed, using simulation:', e.message);
-    if (!APP.data.length || APP.usingDummy) APP.data = generateDummyData();
-    APP.usingDummy = true;
-    document.getElementById('conn-source').textContent =
-      'DATASOURCE: SIMULASI — Pasang Apps Script untuk data real';
-    document.getElementById('conn-latency').textContent = 'MODE: DEMO';
+    console.warn('[THERMAL] gviz error:', e.message);
   }
+
+  // ── Priority 3: Simulasi ───────────────────────────────────
+  if (!APP.data.length || APP.usingDummy) {
+    APP.data = generateDummyData();
+  }
+  APP.usingDummy = true;
+  setConnStatus('demo');
   renderAll(APP.data);
+}
+
+// ── Connection status helper ──────────────────────────────────
+function setConnStatus(mode, source, count, ms) {
+  const el = document.getElementById('conn-source');
+  const lt = document.getElementById('conn-latency');
+  const pt = document.getElementById('conn-points');
+  if (mode === 'loading') {
+    if (el) el.textContent = 'DATASOURCE: MENGHUBUNGKAN...';
+    return;
+  }
+  if (mode === 'demo') {
+    if (el) el.textContent = '⚠ SIMULASI — klik ⚙ SETTINGS untuk koneksikan data real';
+    if (lt) lt.textContent = 'MODE: DEMO';
+    return;
+  }
+  if (mode === 'ok') {
+    if (el) el.textContent = `✓ ${source} (${count} baris)`;
+    if (lt) lt.textContent = `LATENCY: ${ms}ms`;
+    if (pt) pt.textContent = `DATAPOINTS: ${count}`;
+  }
 }
 
 /* ============================================================
@@ -3066,6 +3206,116 @@ function exportCSV() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+
+/* ============================================================
+   SETTINGS PANEL
+============================================================ */
+function openSettings() {
+  const overlay = document.getElementById('settings-overlay');
+  document.getElementById('cfg-apps-script-url').value = CONFIG.APPS_SCRIPT_URL || '';
+  document.getElementById('cfg-sheet-id').value         = CONFIG.SHEET_ID || '';
+  document.getElementById('cfg-sheet-name').value       = CONFIG.SHEET_NAME || 'Sheet1';
+  document.getElementById('cfg-refresh').value          = CONFIG.REFRESH_INTERVAL / 1000;
+  document.getElementById('settings-status-msg').className = 'settings-status';
+  document.getElementById('settings-status-msg').textContent = '';
+  overlay.classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('show');
+}
+
+function saveSettings() {
+  const appsUrl  = document.getElementById('cfg-apps-script-url').value.trim();
+  const sheetId  = document.getElementById('cfg-sheet-id').value.trim();
+  const sheetNm  = document.getElementById('cfg-sheet-name').value.trim() || 'Sheet1';
+  const refresh  = parseInt(document.getElementById('cfg-refresh').value) || 60;
+
+  CONFIG.APPS_SCRIPT_URL  = appsUrl;
+  CONFIG.SHEET_ID         = sheetId;
+  CONFIG.SHEET_NAME       = sheetNm;
+  CONFIG.REFRESH_INTERVAL = refresh * 1000;
+
+  // Simpan ke localStorage
+  try {
+    localStorage.setItem('thermal_cfg', JSON.stringify({
+      APPS_SCRIPT_URL : appsUrl,
+      SHEET_ID        : sheetId,
+      SHEET_NAME      : sheetNm,
+      REFRESH_INTERVAL: refresh,
+    }));
+  } catch(e) {}
+
+  // Reset auto-refresh timer
+  if (APP.refreshTimer) clearInterval(APP.refreshTimer);
+  APP.refreshTimer = setInterval(fetchAndRender, CONFIG.REFRESH_INTERVAL);
+  document.getElementById('conn-interval').textContent = `AUTO-REFRESH: ${refresh}s`;
+
+  closeSettings();
+  fetchAndRender();
+}
+
+async function testConnection() {
+  const appsUrl = document.getElementById('cfg-apps-script-url').value.trim();
+  const sheetId = document.getElementById('cfg-sheet-id').value.trim();
+  const msgEl   = document.getElementById('settings-status-msg');
+
+  msgEl.className   = 'settings-status';
+  msgEl.textContent = '⏳ Mengetes koneksi...';
+  msgEl.style.display = 'block';
+
+  // Test Apps Script first
+  if (appsUrl && appsUrl.startsWith('http')) {
+    try {
+      const res  = await fetch(appsUrl);
+      const json = await res.json();
+      if (json.status === 'ok' && json.count > 0) {
+        msgEl.className   = 'settings-status ok';
+        msgEl.textContent = `✅ Apps Script OK — ${json.count} baris, update: ${json.updated}`;
+        return;
+      } else {
+        msgEl.className   = 'settings-status err';
+        msgEl.textContent = `❌ Apps Script error: ${json.message || 'Data kosong'}`;
+        return;
+      }
+    } catch(e) {
+      msgEl.className   = 'settings-status err';
+      msgEl.textContent = `❌ Apps Script gagal: ${e.message}`;
+      return;
+    }
+  }
+
+  // Test gviz
+  if (sheetId) {
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
+      const res = await fetch(url);
+      const raw = await res.text();
+      const parsed = parseGvizResponse(raw);
+      if (parsed.success && parsed.rows.length) {
+        msgEl.className   = 'settings-status ok';
+        msgEl.textContent = `✅ Google Sheets OK — ${parsed.rows.length} baris (timestamp mungkin perlu Apps Script)`;
+      } else {
+        msgEl.className   = 'settings-status err';
+        msgEl.textContent = '❌ Sheets tidak dapat diakses. Pastikan sheet sudah dipublish (Anyone can view).';
+      }
+    } catch(e) {
+      msgEl.className   = 'settings-status err';
+      msgEl.textContent = `❌ Sheets error: ${e.message}`;
+    }
+    return;
+  }
+
+  msgEl.className   = 'settings-status err';
+  msgEl.textContent = 'Masukkan Apps Script URL atau Sheet ID terlebih dahulu.';
+}
+
+// Close overlay on background click
+document.getElementById('settings-overlay') &&
+document.getElementById('settings-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSettings();
+});
 
 </script>
 </body>
