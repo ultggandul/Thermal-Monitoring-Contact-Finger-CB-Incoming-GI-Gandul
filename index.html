@@ -2889,90 +2889,79 @@ function renderAll(data) {
 /* ============================================================
    8. DATA FETCH
 ============================================================ */
-async function fetchAndRender() {
-  const t0 = Date.now();
-  setConnStatus('loading');
+const POLL = { lastTimestamp: null, checkTimer: null, isFetching: false };
 
-  // ── Priority 1: Google Apps Script (recommended) ──────────
-  if (CONFIG.APPS_SCRIPT_URL && CONFIG.APPS_SCRIPT_URL.startsWith('http')) {
-    try {
-      const res = await fetch(CONFIG.APPS_SCRIPT_URL);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json();
-      if (!json || json.status === 'error') throw new Error(json ? json.message : 'Bad response');
-      if (!json.data || json.data.length === 0) throw new Error('Data kosong dari Apps Script');
+/* JSONP — bypass CORS 100%, works from any domain */
+function fetchJsonp(url) {
+  return new Promise(function(resolve, reject) {
+    var cb = '_gc_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    var el  = document.createElement('script');
+    var tid = setTimeout(function(){ cleanup(); reject(new Error('Timeout 10s')); }, 10000);
+    function cleanup() { clearTimeout(tid); delete window[cb]; el.parentNode && el.parentNode.removeChild(el); }
+    window[cb] = function(d) { cleanup(); resolve(d); };
+    el.onerror  = function()  { cleanup(); reject(new Error('Script error')); };
+    el.src = url + (url.indexOf('?')>=0?'&':'?') + 'callback=' + cb + '&t=' + Date.now();
+    document.head.appendChild(el);
+  });
+}
 
-      APP.data = json.data.map(row => ({
-        ...row,
-        timestamp: parseSheetDate(row.timestamp),
-      })).filter(r => r.timestamp && !isNaN(r.timestamp));
-
-      if (!APP.data.length) throw new Error('Semua timestamp invalid');
-      APP.usingDummy = false;
-
-      const ms = Date.now() - t0;
-      setConnStatus('ok', 'APPS SCRIPT', APP.data.length, ms);
-      renderAll(APP.data);
-      return;
-    } catch (e) {
-      console.warn('[THERMAL] Apps Script error:', e.message);
-    }
-  }
-
-  // ── Priority 2: Google Sheets gviz/tq (direct) ────────────
+/* Lightweight check — only reads last row */
+async function checkForNewData() {
+  if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) return;
+  if (POLL.isFetching) return;
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(CONFIG.SHEET_NAME)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const raw = await res.text();
+    const d = await fetchJsonp(CONFIG.APPS_SCRIPT_URL + '?mode=check');
+    if (d.status !== 'ok') return;
+    if (d.lastTimestamp && d.lastTimestamp !== POLL.lastTimestamp) {
+      await fetchAndRender();          // new data → full fetch
+    } else {
+      const el = document.getElementById('conn-source');
+      if (el && !APP.usingDummy) el.textContent = '✓ APPS SCRIPT · ' + d.count + ' baris · Menunggu data baru...';
+    }
+  } catch(e) { console.warn('[THERMAL] check:', e.message); }
+}
 
-    const parsed = parseGvizResponse(raw);
-    if (!parsed.success) throw new Error('Parse gviz gagal');
-    if (!parsed.rows.length) throw new Error('Tidak ada baris data');
+/* Full fetch + render */
+async function fetchAndRender() {
+  if (POLL.isFetching) return;
+  POLL.isFetching = true;
+  const t0 = Date.now();
 
-    const mapped = parsed.rows.map(mapSheetRow).filter(r => r.timestamp && !isNaN(r.timestamp));
-    if (!mapped.length) throw new Error('Semua baris punya timestamp invalid');
-
-    APP.data = mapped;
-    APP.usingDummy = false;
-
-    const ms = Date.now() - t0;
-    setConnStatus('ok', 'GOOGLE SHEETS', APP.data.length, ms);
-    renderAll(APP.data);
-    return;
-  } catch (e) {
-    console.warn('[THERMAL] gviz error:', e.message);
+  if (CONFIG.APPS_SCRIPT_URL && !CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) {
+    try {
+      const d = await fetchJsonp(CONFIG.APPS_SCRIPT_URL + '?mode=full');
+      if (!d || d.status !== 'ok' || !d.data || !d.data.length) throw new Error(d ? d.message : 'empty');
+      APP.data = d.data.map(r => Object.assign({}, r, { timestamp: new Date(r.timestamp) }))
+                       .filter(r => !isNaN(r.timestamp));
+      if (!APP.data.length) throw new Error('timestamps invalid');
+      POLL.lastTimestamp = d.lastTimestamp;
+      APP.usingDummy = false;
+      const ms  = Date.now() - t0;
+      const upd = new Date(d.serverTime || d.lastTimestamp);
+      document.getElementById('conn-source').textContent   = '✓ APPS SCRIPT · ' + d.count + ' baris';
+      document.getElementById('conn-latency').textContent  = 'FETCH: ' + ms + 'ms';
+      document.getElementById('conn-points').textContent   = 'DATAPOINTS: ' + d.count;
+      document.getElementById('last-update').textContent   = 'Update: ' + upd.toLocaleString('id-ID');
+      POLL.isFetching = false; renderAll(APP.data); return;
+    } catch(e) { console.warn('[THERMAL] JSONP:', e.message); }
   }
 
-  // ── Priority 3: Simulasi ───────────────────────────────────
-  if (!APP.data.length || APP.usingDummy) {
-    APP.data = generateDummyData();
-  }
+  if (!APP.data.length || APP.usingDummy) APP.data = generateDummyData();
   APP.usingDummy = true;
-  setConnStatus('demo');
+  document.getElementById('conn-source').textContent = '⚠ SIMULASI — Isi APPS_SCRIPT_URL di HTML';
+  POLL.isFetching = false;
   renderAll(APP.data);
 }
 
-// ── Connection status helper ──────────────────────────────────
-function setConnStatus(mode, source, count, ms) {
-  const el = document.getElementById('conn-source');
-  const lt = document.getElementById('conn-latency');
-  const pt = document.getElementById('conn-points');
-  if (mode === 'loading') {
-    if (el) el.textContent = 'DATASOURCE: MENGHUBUNGKAN...';
-    return;
-  }
-  if (mode === 'demo') {
-    if (el) el.textContent = '⚠ SIMULASI — klik ⚙ SETTINGS untuk koneksikan data real';
-    if (lt) lt.textContent = 'MODE: DEMO';
-    return;
-  }
-  if (mode === 'ok') {
-    if (el) el.textContent = `✓ ${source} (${count} baris)`;
-    if (lt) lt.textContent = `LATENCY: ${ms}ms`;
-    if (pt) pt.textContent = `DATAPOINTS: ${count}`;
-  }
+/* Smart polling start */
+function startPolling() {
+  if (POLL.checkTimer) clearInterval(POLL.checkTimer);
+  fetchAndRender();
+  POLL.checkTimer = setInterval(checkForNewData, CONFIG.REFRESH_INTERVAL);
+  const el = document.getElementById('conn-interval');
+  if (el) el.textContent = 'CHECK: ' + (CONFIG.REFRESH_INTERVAL/1000) + 's';
 }
+
 
 /* ============================================================
    9. INTERACTIVE CONTROLS
@@ -3056,15 +3045,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Hide overlay setelah dummy data tampil
   setTimeout(hideOverlay, 1800);
 
-  // Fetch data real (async — tidak blokir UI)
+  // Mulai smart polling (fetch + auto-check setiap interval)
   setTimeout(() => {
-    fetchAndRender().catch(e => console.warn('fetchAndRender:', e));
-  }, 500);
-
-  // Auto-refresh
-  APP.refreshTimer = setInterval(fetchAndRender, CONFIG.REFRESH_INTERVAL);
-  const ciEl = document.getElementById('conn-interval');
-  if (ciEl) ciEl.textContent = `AUTO-REFRESH: ${CONFIG.REFRESH_INTERVAL/1000}s`;
+    try { startPolling(); } catch(e) { console.warn('startPolling:', e); }
+  }, 400);
 });
 
 /* ============================================================
@@ -3324,11 +3308,10 @@ async function testConnection() {
   // Test Apps Script first
   if (appsUrl && appsUrl.startsWith('http')) {
     try {
-      const res  = await fetch(appsUrl);
-      const json = await res.json();
+      const json = await fetchJsonp(appsUrl + '?mode=check');
       if (json.status === 'ok' && json.count > 0) {
         msgEl.className   = 'settings-status ok';
-        msgEl.textContent = `✅ Apps Script OK — ${json.count} baris, update: ${json.updated}`;
+        msgEl.textContent = '✅ Berhasil! ' + json.count + ' baris · ' + json.lastTimestamp;
         return;
       } else {
         msgEl.className   = 'settings-status err';
