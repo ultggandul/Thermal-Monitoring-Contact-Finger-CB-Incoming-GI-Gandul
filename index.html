@@ -1096,7 +1096,7 @@
 
   <!-- Connection status bar -->
   <div id="conn-bar">
-    <div class="cb-item"><div class="cb-dot"></div><span id="conn-source">DATASOURCE: MENGHUBUNGKAN...</span></div>
+    <div class="cb-item"><div class="cb-dot"></div><span id="conn-source">DATASOURCE: GOOGLE SHEETS</span></div>
     <div class="cb-item"><span id="conn-points">DATAPOINTS: --</span></div>
     <div class="cb-item"><span id="conn-interval">AUTO-REFRESH: 60s</span></div>
     <div class="cb-item"><span id="conn-latency">LATENCY: --</span></div>
@@ -1106,6 +1106,47 @@
 
 
   
+  <!-- SETUP BANNER — hilang otomatis setelah URL diisi -->
+  <div id="setup-banner" style="
+    background: linear-gradient(90deg, rgba(255,107,53,0.12), rgba(255,215,0,0.08));
+    border-bottom: 1px solid rgba(255,107,53,0.3);
+    padding: 10px 20px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  ">
+    <span style="font-size:18px;">⚡</span>
+    <div style="flex:1; min-width:200px;">
+      <span style="font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--orange);">
+        Hubungkan ke data real
+      </span>
+      <span style="font-family:var(--font-body);font-size:12px;color:var(--text-secondary);margin-left:8px;">
+        — Paste URL Google Apps Script untuk menampilkan data live
+      </span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:2;min-width:300px;">
+      <input
+        id="banner-url-input"
+        type="text"
+        placeholder="https://script.google.com/macros/s/AKfy.../exec"
+        style="
+          flex:1; font-family:var(--font-mono); font-size:11px;
+          background:rgba(0,0,0,0.3); border:1px solid rgba(255,107,53,0.4);
+          color:var(--text-primary); padding:7px 12px; border-radius:5px;
+          outline:none; min-width:0;
+        "
+        onkeydown="if(event.key==='Enter') bannerSave()"
+      />
+      <button onclick="bannerSave()" style="
+        font-family:var(--font-body); font-size:12px; font-weight:700;
+        padding:7px 16px; border-radius:5px; border:none; cursor:pointer;
+        background:var(--orange); color:#fff; white-space:nowrap;
+        transition:opacity .2s;
+      " onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+        Simpan & Connect
+      </button>
+    </div>
+    <span id="banner-status" style="font-family:var(--font-mono);font-size:11px;display:none;"></span>
+  </div>
+
 
   <!-- TAB NAVIGATION -->
   <nav id="tab-nav">
@@ -1458,6 +1499,8 @@
   </footer>
 
 
+  <!-- SETUP BANNER JS -->
+  <!-- (injected above) -->
   <!-- SETTINGS PANEL -->
   <div id="settings-overlay">
     <div id="settings-panel">
@@ -1513,30 +1556,23 @@
 /* ============================================================
    0. CONFIGURATION — Edit this section for deployment
 ============================================================ */
-// ================================================================
-// KONFIGURASI — EDIT BAGIAN INI SEBELUM UPLOAD KE GITHUB
-// ================================================================
-const CONFIG = {
-
-  // ▼ PASTE URL APPS SCRIPT HASIL DEPLOY DI SINI ▼
-  APPS_SCRIPT_URL : 'https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec',
-  // ▲ contoh: 'https://script.google.com/macros/s/AKfy.../exec'
-
-  // Sheet ID (sudah diisi — tidak perlu diubah)
-  SHEET_ID        : '1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE',
-  SHEET_NAME      : 'Sheet1',
-
-  // Interval cek data baru (detik) — lightweight check setiap 15 detik
-  CHECK_INTERVAL  : 15 * 1000,
-
-  // Pengaturan chart
-  MAX_TREND_POINTS: 48,
-  THRESH          : { NORMAL: 55, MONITOR: 65, WARNING: 75 },
-  AGING_REF_TEMP  : 40,
-
-  // Untuk kompatibilitas kode lama
-  get REFRESH_INTERVAL() { return this.CHECK_INTERVAL; },
-};
+// ── CONFIG — load dari localStorage jika ada ─────────────────
+const CONFIG = (function() {
+  const stored = {};
+  try {
+    const s = localStorage.getItem('thermal_cfg');
+    if (s) Object.assign(stored, JSON.parse(s));
+  } catch(e) {}
+  return {
+    SHEET_ID        : stored.SHEET_ID         || '1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE',
+    SHEET_NAME      : stored.SHEET_NAME       || 'Sheet1',
+    APPS_SCRIPT_URL : stored.APPS_SCRIPT_URL  || 'https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec',
+    REFRESH_INTERVAL: (stored.REFRESH_INTERVAL || 30) * 1000,
+    MAX_TREND_POINTS: 48,
+    THRESH          : { NORMAL: 55, MONITOR: 65, WARNING: 75 },
+    AGING_REF_TEMP  : 40,
+  };
+})();
 
 /* ── URL builders ────────────────────────────────────────────*/
 function buildSheetURL() {
@@ -1933,6 +1969,7 @@ const LiveChart = {
 
   /** Push data from APP.data into rolling buffer and update chart */
   update(data, trafo) {
+    if (!this.chart) return; // lazy guard
     if (!data || !data.length) return;
     const t = `t${trafo}`;
 
@@ -2006,6 +2043,7 @@ const LiveChart = {
 
   /** Animate the live pulse dot */
   flashPulse() {
+    if (!this.chart) return;
     const el = document.getElementById('live-pulse');
     if (!el) return;
     el.style.background = 'var(--cyan)';
@@ -2113,7 +2151,7 @@ const ChartDefs = {
 function initCharts() {
   Chart.defaults.color = '#7a9bb5';
   Chart.defaults.borderColor = 'rgba(255,255,255,0.04)';
-  LiveChart.init();
+  // LiveChart: lazy init saat tab Live Data dibuka
 
   // Trend chart
   const trendCtx = document.getElementById('trendChart').getContext('2d');
@@ -2829,8 +2867,7 @@ function renderAll(data) {
   renderHealthIndex(data);
   renderMaintenance(data);
   updateSystemStatus(data);
-  LiveChart.update(data, LiveChart.trafo);
-  LiveChart.flashPulse();
+  try { if (LiveChart.chart) { LiveChart.update(data, LiveChart.trafo); LiveChart.flashPulse(); } } catch(e) {}
   // Update live data tab if it's currently active
   if (document.getElementById('tab-livedata').classList.contains('active')) {
     renderLiveDataTable();
@@ -2852,178 +2889,143 @@ function renderAll(data) {
 /* ============================================================
    8. DATA FETCH
 ============================================================ */
-// ================================================================
-// SMART POLLING ENGINE
-// - Setiap CHECK_INTERVAL: ringan, hanya cek timestamp terakhir
-// - Hanya fetch data penuh jika ada baris baru di spreadsheet
-// - Dashboard re-render hanya saat data benar-benar berubah
-// ================================================================
-
-// State polling
-const POLL = {
-  lastTimestamp : null,   // timestamp terakhir yang di-render
-  lastRowCount  : 0,      // jumlah baris terakhir
-  checkTimer    : null,   // interval timer
-  isFetching    : false,  // lock agar tidak double-fetch
-};
-
-/* ── Lightweight check: hanya baca baris terakhir ────────── */
-async function checkForNewData() {
-  if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) return;
-  if (POLL.isFetching) return;
-
-  try {
-    const url = CONFIG.APPS_SCRIPT_URL + '?mode=check&t=' + Date.now();
-    const res = await fetch(url);
-    const json = await res.json();
-
-    if (json.status !== 'ok') return;
-
-    const newTs    = json.lastTimestamp;
-    const newCount = json.count || 0;
-
-    // Update conn-bar dengan info server
-    updateConnBar(newCount, json.serverTime, false);
-
-    // Ada data baru? → fetch full
-    if (newTs && newTs !== POLL.lastTimestamp) {
-      console.log(`[THERMAL] Data baru terdeteksi: ${POLL.lastTimestamp} → ${newTs}`);
-      await fetchFullData();
-    }
-    // Tidak ada perubahan → tidak ada re-render
-    else {
-      console.log(`[THERMAL] Tidak ada data baru (${newTs})`);
-    }
-
-  } catch(e) {
-    console.warn('[THERMAL] Check error:', e.message);
-  }
-}
-
-/* ── Full data fetch → re-render dashboard ────────────────── */
-async function fetchFullData() {
-  if (POLL.isFetching) return;
-  POLL.isFetching = true;
+async function fetchAndRender() {
   const t0 = Date.now();
+  setConnStatus('loading');
 
-  try {
-    // ── Priority 1: Apps Script full data ─────────────────
-    if (CONFIG.APPS_SCRIPT_URL && !CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) {
-      const url = CONFIG.APPS_SCRIPT_URL + '?mode=full&t=' + Date.now();
-      const res = await fetch(url);
+  // ── Priority 1: Google Apps Script (recommended) ──────────
+  if (CONFIG.APPS_SCRIPT_URL && CONFIG.APPS_SCRIPT_URL.startsWith('http')) {
+    try {
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       const json = await res.json();
-
-      if (json.status !== 'ok') throw new Error(json.message || 'Bad response');
-      if (!json.data || json.data.length === 0) throw new Error('Data kosong');
+      if (!json || json.status === 'error') throw new Error(json ? json.message : 'Bad response');
+      if (!json.data || json.data.length === 0) throw new Error('Data kosong dari Apps Script');
 
       APP.data = json.data.map(row => ({
         ...row,
-        timestamp: new Date(row.timestamp),
+        timestamp: parseSheetDate(row.timestamp),
       })).filter(r => r.timestamp && !isNaN(r.timestamp));
 
       if (!APP.data.length) throw new Error('Semua timestamp invalid');
-
-      POLL.lastTimestamp = json.lastTimestamp;
-      POLL.lastRowCount  = json.count;
-      APP.usingDummy     = false;
+      APP.usingDummy = false;
 
       const ms = Date.now() - t0;
-      updateConnBar(json.count, json.serverTime, true, ms);
+      setConnStatus('ok', 'APPS SCRIPT', APP.data.length, ms);
       renderAll(APP.data);
-      POLL.isFetching = false;
       return;
-    }
-
-    // ── Priority 2: gviz fallback ──────────────────────────
-    const url2  = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(CONFIG.SHEET_NAME)}&t=${Date.now()}`;
-    const res2  = await fetch(url2);
-    const raw2  = await res2.text();
-    const parsed = parseGvizResponse(raw2);
-
-    if (parsed.success && parsed.rows.length) {
-      const mapped = parsed.rows.map(mapSheetRow).filter(r => r.timestamp && !isNaN(r.timestamp));
-      if (mapped.length) {
-        APP.data = mapped;
-        const lastTs = APP.data[APP.data.length-1].timestamp;
-        POLL.lastTimestamp = lastTs instanceof Date ? lastTs.toISOString() : String(lastTs);
-        POLL.lastRowCount  = mapped.length;
-        APP.usingDummy     = false;
-        updateConnBar(mapped.length, null, true, Date.now()-t0);
-        renderAll(APP.data);
-        POLL.isFetching = false;
-        return;
-      }
-    }
-    throw new Error('gviz gagal atau kosong');
-
-  } catch(e) {
-    console.warn('[THERMAL] fetchFullData error:', e.message);
-    // Jaga data lama, jangan timpa dengan simulasi
-    if (!APP.data.length || APP.usingDummy) {
-      APP.data = generateDummyData();
-      APP.usingDummy = true;
-      setConnStatusDemo();
-      renderAll(APP.data);
+    } catch (e) {
+      console.warn('[THERMAL] Apps Script error:', e.message);
     }
   }
 
-  POLL.isFetching = false;
+  // ── Priority 2: Google Sheets gviz/tq (direct) ────────────
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(CONFIG.SHEET_NAME)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const raw = await res.text();
+
+    const parsed = parseGvizResponse(raw);
+    if (!parsed.success) throw new Error('Parse gviz gagal');
+    if (!parsed.rows.length) throw new Error('Tidak ada baris data');
+
+    const mapped = parsed.rows.map(mapSheetRow).filter(r => r.timestamp && !isNaN(r.timestamp));
+    if (!mapped.length) throw new Error('Semua baris punya timestamp invalid');
+
+    APP.data = mapped;
+    APP.usingDummy = false;
+
+    const ms = Date.now() - t0;
+    setConnStatus('ok', 'GOOGLE SHEETS', APP.data.length, ms);
+    renderAll(APP.data);
+    return;
+  } catch (e) {
+    console.warn('[THERMAL] gviz error:', e.message);
+  }
+
+  // ── Priority 3: Simulasi ───────────────────────────────────
+  if (!APP.data.length || APP.usingDummy) {
+    APP.data = generateDummyData();
+  }
+  APP.usingDummy = true;
+  setConnStatus('demo');
+  renderAll(APP.data);
 }
 
-/* ── Alias untuk kompatibilitas kode lama ─────────────────── */
-async function fetchAndRender() {
-  await fetchFullData();
-}
-
-/* ── Mulai smart polling ─────────────────────────────────── */
-function startPolling() {
-  if (POLL.checkTimer) clearInterval(POLL.checkTimer);
-
-  // Langsung fetch data penuh pertama kali
-  fetchFullData();
-
-  // Kemudian poll ringan setiap CHECK_INTERVAL
-  POLL.checkTimer = setInterval(checkForNewData, CONFIG.CHECK_INTERVAL);
-
-  document.getElementById('conn-interval').textContent =
-    `CHECK INTERVAL: ${CONFIG.CHECK_INTERVAL/1000}s`;
-}
-
-/* ── Update connection bar ────────────────────────────────── */
-function updateConnBar(count, serverTime, isUpdated, ms) {
-  const srcEl = document.getElementById('conn-source');
-  const ptEl  = document.getElementById('conn-points');
-  const ltEl  = document.getElementById('conn-latency');
-  const upEl  = document.getElementById('last-update');
-
-  if (ptEl) ptEl.textContent = `DATAPOINTS: ${count}`;
-
-  if (isUpdated) {
-    if (srcEl) srcEl.textContent = `✓ APPS SCRIPT — DATA DIPERBARUI`;
-    if (ltEl && ms) ltEl.textContent = `FETCH: ${ms}ms`;
-    if (upEl) {
-      const ts = serverTime ? new Date(serverTime) : new Date();
-      upEl.textContent = `Update: ${ts.toLocaleString('id-ID')}`;
-    }
-  } else {
-    if (srcEl) srcEl.textContent = `✓ APPS SCRIPT — Menunggu data baru...`;
+// ── Connection status helper ──────────────────────────────────
+function setConnStatus(mode, source, count, ms) {
+  const el = document.getElementById('conn-source');
+  const lt = document.getElementById('conn-latency');
+  const pt = document.getElementById('conn-points');
+  if (mode === 'loading') {
+    if (el) el.textContent = 'DATASOURCE: MENGHUBUNGKAN...';
+    return;
+  }
+  if (mode === 'demo') {
+    if (el) el.textContent = '⚠ SIMULASI — klik ⚙ SETTINGS untuk koneksikan data real';
+    if (lt) lt.textContent = 'MODE: DEMO';
+    return;
+  }
+  if (mode === 'ok') {
+    if (el) el.textContent = `✓ ${source} (${count} baris)`;
+    if (lt) lt.textContent = `LATENCY: ${ms}ms`;
+    if (pt) pt.textContent = `DATAPOINTS: ${count}`;
   }
 }
-
-function setConnStatusDemo() {
-  const srcEl = document.getElementById('conn-source');
-  if (srcEl) srcEl.textContent = '⚠ SIMULASI — Isi APPS_SCRIPT_URL di HTML lalu upload ulang';
-}
-
-
 
 /* ============================================================
-   BOOT SEQUENCE
+   9. INTERACTIVE CONTROLS
+============================================================ */
+function setGaugeTrafo(num, btn) {
+  APP.activeGaugeTrafo = num;
+  document.querySelectorAll('#gauge-grid').forEach(() => {});
+  btn.closest('.chart-controls').querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGauges(APP.data, num);
+}
+
+function setTrendTrafo(num, btn) {
+  APP.activeTrendTrafo = num;
+  btn.closest('.chart-controls').querySelectorAll('.ctrl-btn:not([id^="btn-"])').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTrend(APP.data, num);
+}
+
+function toggleSeries(phase, btn) {
+  APP.trendVisibility[phase] = !APP.trendVisibility[phase];
+  btn.classList.toggle('active');
+  // Update chart dataset visibility
+  APP.charts.trend.data.datasets.forEach(ds => {
+    if (ds.label && ds.label.startsWith(phase)) {
+      ds.hidden = !APP.trendVisibility[phase];
+    }
+  });
+  APP.charts.trend.update();
+}
+
+/* ============================================================
+   10. CLOCK
+============================================================ */
+function startClock() {
+  function tick() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+    document.getElementById('date-display').textContent =
+      now.toLocaleDateString('id-ID', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ============================================================
+   11. BOOT SEQUENCE
 ============================================================ */
 const BOOT_MESSAGES = [
   'INITIALIZING SENSORS...',
   'LOADING THERMAL ENGINE...',
-  'CONNECTING TO DATA SOURCE...',
+  'CONNECTING TO SPREADSHEET...',
   'CALIBRATING AI MODELS...',
   'RENDERING DASHBOARD...',
 ];
@@ -3036,28 +3038,397 @@ const bootInterval = setInterval(() => {
 }, 300);
 
 document.addEventListener('DOMContentLoaded', () => {
-  startClock();
-  initCharts();
+  // Failsafe: overlay PASTI hilang setelah 5 detik
+  function hideOverlay() {
+    const o = document.getElementById('loading-overlay');
+    if (o) { o.classList.add('hidden'); setTimeout(() => { try { o.remove(); } catch(e) {} }, 700); }
+  }
+  setTimeout(hideOverlay, 5000);
 
-  // Tampilkan simulasi dulu saat loading
-  APP.data = generateDummyData();
-  renderAll(APP.data);
+  try { startClock(); } catch(e) { console.error('startClock:', e); }
+  try { initCharts(); } catch(e) { console.error('initCharts:', e); }
 
-  // Cek apakah URL sudah dikonfigurasi
-  if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) {
-    setConnStatusDemo();
+  try {
+    APP.data = generateDummyData();
+    renderAll(APP.data);
+  } catch(e) { console.error('initial render:', e); }
+
+  // Hide overlay setelah dummy data tampil
+  setTimeout(hideOverlay, 1800);
+
+  // Fetch data real (async — tidak blokir UI)
+  setTimeout(() => {
+    fetchAndRender().catch(e => console.warn('fetchAndRender:', e));
+  }, 500);
+
+  // Auto-refresh
+  APP.refreshTimer = setInterval(fetchAndRender, CONFIG.REFRESH_INTERVAL);
+  const ciEl = document.getElementById('conn-interval');
+  if (ciEl) ciEl.textContent = `AUTO-REFRESH: ${CONFIG.REFRESH_INTERVAL/1000}s`;
+});
+
+/* ============================================================
+   TAB SYSTEM
+============================================================ */
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  btn.classList.add('active');
+  // Update live data table when switching to it
+  if (name === 'livedata') {
+    if (!LiveChart.chart) { try { LiveChart.init(); } catch(e) { console.warn('LC init:',e); } }
+    renderLiveDataTable();
+    if (APP.data && APP.data.length) { try { LiveChart.update(APP.data, LiveChart.trafo); } catch(e) {} }
+  }
+}
+
+/* ============================================================
+   LIVE DATA TABLE
+============================================================ */
+const LiveData = {
+  trafoFilter: 'all',
+  searchQuery: '',
+
+  COLUMNS: [
+    { key: 'timestamp',  label: 'Timestamp',      group: '',       phaseClass: '' },
+    { key: 't2_r_atas',  label: 'R Atas',          group: 'TRAFO 2', phaseClass: 'phase-R' },
+    { key: 't2_r_bawah', label: 'R Bawah',         group: '',       phaseClass: 'phase-R' },
+    { key: 't2_s_atas',  label: 'S Atas',          group: '',       phaseClass: 'phase-S' },
+    { key: 't2_s_bawah', label: 'S Bawah',         group: '',       phaseClass: 'phase-S' },
+    { key: 't2_t_atas',  label: 'T Atas',          group: '',       phaseClass: 'phase-T' },
+    { key: 't2_t_bawah', label: 'T Bawah',         group: '',       phaseClass: 'phase-T' },
+    { key: 't3_r_atas',  label: 'R Atas',          group: 'TRAFO 3', phaseClass: 'phase-R' },
+    { key: 't3_r_bawah', label: 'R Bawah',         group: '',       phaseClass: 'phase-R' },
+    { key: 't3_s_atas',  label: 'S Atas',          group: '',       phaseClass: 'phase-S' },
+    { key: 't3_s_bawah', label: 'S Bawah',         group: '',       phaseClass: 'phase-S' },
+    { key: 't3_t_atas',  label: 'T Atas',          group: '',       phaseClass: 'phase-T' },
+    { key: 't3_t_bawah', label: 'T Bawah',         group: '',       phaseClass: 'phase-T' },
+    { key: 't4_r_atas',  label: 'R Atas',          group: 'TRAFO 4', phaseClass: 'phase-R' },
+    { key: 't4_r_bawah', label: 'R Bawah',         group: '',       phaseClass: 'phase-R' },
+    { key: 't4_s_atas',  label: 'S Atas',          group: '',       phaseClass: 'phase-S' },
+    { key: 't4_s_bawah', label: 'S Bawah',         group: '',       phaseClass: 'phase-S' },
+    { key: 't4_t_atas',  label: 'T Atas',          group: '',       phaseClass: 'phase-T' },
+    { key: 't4_t_bawah', label: 'T Bawah',         group: '',       phaseClass: 'phase-T' },
+  ],
+
+  getFilteredCols() {
+    if (this.trafoFilter === 'all') return this.COLUMNS;
+    const t = `t${this.trafoFilter}`;
+    return this.COLUMNS.filter(c => c.key === 'timestamp' || c.key.startsWith(t));
+  },
+
+  tempClass(v) {
+    if (!v || v <= 0) return '';
+    if (v < 55) return 'tc-normal';
+    if (v < 65) return 'tc-monitor';
+    if (v < 75) return 'tc-warning';
+    return 'tc-critical';
+  },
+
+  renderHeader() {
+    const cols = this.getFilteredCols();
+    // Build group header row
+    const groups = [];
+    let curGroup = ''; let curSpan = 0;
+    cols.forEach(c => {
+      if (c.group) { if (curGroup) groups.push({label:curGroup, span:curSpan}); curGroup=c.group; curSpan=1; }
+      else if (curGroup) curSpan++;
+      else groups.push({label:'', span:1});
+    });
+    if (curGroup) groups.push({label:curGroup, span:curSpan});
+
+    const groupRow = groups.map(g =>
+      g.label
+        ? `<th colspan="${g.span}" class="th-group" style="text-align:center;border-left:2px solid rgba(0,212,255,0.15);">${g.label}</th>`
+        : `<th class="th-group"></th>`
+    ).join('');
+
+    const colRow = cols.map((c,i) => {
+      const borderLeft = c.group ? 'border-left:2px solid rgba(0,212,255,0.15);' : '';
+      return `<th class="${c.phaseClass}" style="${borderLeft}">${c.label}</th>`;
+    }).join('');
+
+    document.getElementById('ld-thead').innerHTML =
+      `<tr>${groupRow}</tr><tr>${colRow}</tr>`;
+  },
+
+  renderRows(data) {
+    const cols = this.getFilteredCols();
+    const query = this.searchQuery.toLowerCase();
+
+    // Filter by search query
+    const filtered = data.filter(row => {
+      if (!query) return true;
+      const ts = new Date(row.timestamp).toLocaleString('id-ID');
+      return ts.toLowerCase().includes(query);
+    });
+
+    document.getElementById('ld-row-count').textContent = `${filtered.length} baris`;
+
+    if (!filtered.length) {
+      document.getElementById('ld-tbody').innerHTML =
+        `<tr><td colspan="${cols.length}" style="text-align:center;padding:30px;color:var(--text-muted);">Tidak ada data</td></tr>`;
+      return;
+    }
+
+    // Render rows — latest first
+    const rows = [...filtered].reverse();
+    document.getElementById('ld-tbody').innerHTML = rows.map((row, idx) => {
+      const ts = new Date(row.timestamp);
+      const tsStr = ts.toLocaleString('id-ID', {
+        day:'2-digit', month:'short', year:'numeric',
+        hour:'2-digit', minute:'2-digit', second:'2-digit'
+      });
+      const isLatest = idx === 0;
+      const cells = cols.map((c, ci) => {
+        if (c.key === 'timestamp') {
+          return `<td class="ts-col">${tsStr}</td>`;
+        }
+        const v = row[c.key];
+        const cls = this.tempClass(v);
+        const borderLeft = c.group ? 'border-left:2px solid rgba(0,212,255,0.1);' : '';
+        const display = (v && v > 0) ? v.toFixed(1) + '°' : '—';
+        return `<td class="${cls}" style="${borderLeft}">${display}</td>`;
+      }).join('');
+      return `<tr class="${isLatest ? 'latest-row' : ''}">${cells}</tr>`;
+    }).join('');
+
+    document.getElementById('ld-last-update').textContent =
+      `Last fetch: ${new Date().toLocaleTimeString('id-ID')}`;
+  },
+
+  renderStats(data) {
+    if (!data.length) return;
+    const last = data[data.length - 1];
+    const allVals = Object.keys(last).filter(k => k !== 'timestamp').map(k => last[k]).filter(v => v > 0);
+    const maxV = Math.max(...allVals);
+    const minV = Math.min(...allVals);
+    const avgV = +(allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1);
+    const critCount = allVals.filter(v => v >= 75).length;
+    const warnCount = allVals.filter(v => v >= 65 && v < 75).length;
+
+    document.getElementById('ld-stats-row').innerHTML = [
+      { lbl: 'Total Baris',    val: data.length,             color: 'var(--cyan)'  },
+      { lbl: 'Suhu Max',       val: maxV.toFixed(1)+'°C',    color: Analytics.tempColor(maxV) },
+      { lbl: 'Suhu Min',       val: minV.toFixed(1)+'°C',    color: 'var(--green)' },
+      { lbl: 'Suhu Rata-rata', val: avgV+'°C',               color: Analytics.tempColor(avgV) },
+      { lbl: 'Channel Warning',val: warnCount,               color: 'var(--orange)'},
+      { lbl: 'Channel Critical',val: critCount,              color: critCount>0?'var(--red)':'var(--text-muted)' },
+    ].map(s => `
+      <div class="data-stat-box">
+        <div class="dsb-val" style="color:${s.color};">${s.val}</div>
+        <div class="dsb-lbl">${s.lbl}</div>
+      </div>
+    `).join('');
+  },
+};
+
+function renderLiveDataTable() {
+  if (!APP.data || !APP.data.length) return;
+  LiveData.renderHeader();
+  LiveData.renderRows(APP.data);
+  LiveData.renderStats(APP.data);
+}
+
+function setLDTrafo(t, btn) {
+  LiveData.trafoFilter = t;
+  btn.parentElement.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLiveDataTable();
+}
+
+function filterLDTable() {
+  LiveData.searchQuery = document.getElementById('ld-search').value;
+  LiveData.renderRows(APP.data);
+}
+
+function exportCSV() {
+  if (!APP.data || !APP.data.length) return;
+  const cols = LiveData.getFilteredCols();
+  const header = cols.map(c => c.key).join(',');
+  const rows = [...APP.data].reverse().map(row => {
+    return cols.map(c => {
+      if (c.key === 'timestamp') return `"${new Date(row.timestamp).toLocaleString('id-ID')}"`;
+      return row[c.key] !== undefined ? row[c.key] : '';
+    }).join(',');
+  });
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `PMT_Thermal_GI_Gandul_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+/* ============================================================
+   SETTINGS PANEL
+============================================================ */
+function openSettings() {
+  const overlay = document.getElementById('settings-overlay');
+  document.getElementById('cfg-apps-script-url').value = CONFIG.APPS_SCRIPT_URL || '';
+  document.getElementById('cfg-sheet-id').value         = CONFIG.SHEET_ID || '';
+  document.getElementById('cfg-sheet-name').value       = CONFIG.SHEET_NAME || 'Sheet1';
+  document.getElementById('cfg-refresh').value          = CONFIG.REFRESH_INTERVAL / 1000;
+  document.getElementById('settings-status-msg').className = 'settings-status';
+  document.getElementById('settings-status-msg').textContent = '';
+  overlay.classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('show');
+}
+
+function saveSettings() {
+  const appsUrl  = document.getElementById('cfg-apps-script-url').value.trim();
+  const sheetId  = document.getElementById('cfg-sheet-id').value.trim();
+  const sheetNm  = document.getElementById('cfg-sheet-name').value.trim() || 'Sheet1';
+  const refresh  = parseInt(document.getElementById('cfg-refresh').value) || 60;
+
+  CONFIG.APPS_SCRIPT_URL  = appsUrl;
+  CONFIG.SHEET_ID         = sheetId;
+  CONFIG.SHEET_NAME       = sheetNm;
+  CONFIG.REFRESH_INTERVAL = refresh * 1000;
+
+  // Simpan ke localStorage
+  try {
+    localStorage.setItem('thermal_cfg', JSON.stringify({
+      APPS_SCRIPT_URL : appsUrl,
+      SHEET_ID        : sheetId,
+      SHEET_NAME      : sheetNm,
+      REFRESH_INTERVAL: refresh,
+    }));
+  } catch(e) {}
+
+  // Reset auto-refresh timer
+  if (APP.refreshTimer) clearInterval(APP.refreshTimer);
+  APP.refreshTimer = setInterval(fetchAndRender, CONFIG.REFRESH_INTERVAL);
+  document.getElementById('conn-interval').textContent = `AUTO-REFRESH: ${refresh}s`;
+
+  closeSettings();
+  fetchAndRender();
+}
+
+async function testConnection() {
+  const appsUrl = document.getElementById('cfg-apps-script-url').value.trim();
+  const sheetId = document.getElementById('cfg-sheet-id').value.trim();
+  const msgEl   = document.getElementById('settings-status-msg');
+
+  msgEl.className   = 'settings-status';
+  msgEl.textContent = '⏳ Mengetes koneksi...';
+  msgEl.style.display = 'block';
+
+  // Test Apps Script first
+  if (appsUrl && appsUrl.startsWith('http')) {
+    try {
+      const res  = await fetch(appsUrl);
+      const json = await res.json();
+      if (json.status === 'ok' && json.count > 0) {
+        msgEl.className   = 'settings-status ok';
+        msgEl.textContent = `✅ Apps Script OK — ${json.count} baris, update: ${json.updated}`;
+        return;
+      } else {
+        msgEl.className   = 'settings-status err';
+        msgEl.textContent = `❌ Apps Script error: ${json.message || 'Data kosong'}`;
+        return;
+      }
+    } catch(e) {
+      msgEl.className   = 'settings-status err';
+      msgEl.textContent = `❌ Apps Script gagal: ${e.message}`;
+      return;
+    }
   }
 
-  // Sembunyikan loading overlay
-  setTimeout(() => {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.classList.add('hidden');
-    setTimeout(() => { if (overlay) overlay.remove(); }, 700);
-  }, 1600);
+  // Test gviz
+  if (sheetId) {
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
+      const res = await fetch(url);
+      const raw = await res.text();
+      const parsed = parseGvizResponse(raw);
+      if (parsed.success && parsed.rows.length) {
+        msgEl.className   = 'settings-status ok';
+        msgEl.textContent = `✅ Google Sheets OK — ${parsed.rows.length} baris (timestamp mungkin perlu Apps Script)`;
+      } else {
+        msgEl.className   = 'settings-status err';
+        msgEl.textContent = '❌ Sheets tidak dapat diakses. Pastikan sheet sudah dipublish (Anyone can view).';
+      }
+    } catch(e) {
+      msgEl.className   = 'settings-status err';
+      msgEl.textContent = `❌ Sheets error: ${e.message}`;
+    }
+    return;
+  }
 
-  // Mulai smart polling engine
-  startPolling();
+  msgEl.className   = 'settings-status err';
+  msgEl.textContent = 'Masukkan Apps Script URL atau Sheet ID terlebih dahulu.';
+}
+
+// Close overlay on background click
+document.getElementById('settings-overlay') &&
+document.getElementById('settings-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSettings();
 });
+
+
+/* ============================================================
+   SETUP BANNER
+============================================================ */
+(function initBanner() {
+  // Populate input from saved config
+  const saved = CONFIG.APPS_SCRIPT_URL;
+  const input = document.getElementById('banner-url-input');
+  if (input) input.value = saved || '';
+  // Hide banner if URL already set
+  if (saved && saved.startsWith('http')) {
+    const banner = document.getElementById('setup-banner');
+    if (banner) banner.style.display = 'none';
+  }
+})();
+
+function bannerSave() {
+  const input   = document.getElementById('banner-url-input');
+  const statusEl = document.getElementById('banner-status');
+  const url     = input ? input.value.trim() : '';
+
+  if (!url || !url.startsWith('http')) {
+    if (statusEl) { statusEl.textContent = '❌ URL tidak valid'; statusEl.style.color='var(--red)'; statusEl.style.display='inline'; }
+    return;
+  }
+
+  // Save to CONFIG + localStorage
+  CONFIG.APPS_SCRIPT_URL = url;
+  try {
+    const stored = JSON.parse(localStorage.getItem('thermal_cfg') || '{}');
+    stored.APPS_SCRIPT_URL = url;
+    localStorage.setItem('thermal_cfg', JSON.stringify(stored));
+  } catch(e) {}
+
+  if (statusEl) { statusEl.textContent = '⏳ Menghubungkan...'; statusEl.style.color='var(--yellow)'; statusEl.style.display='inline'; }
+
+  // Test connection
+  fetch(url)
+    .then(r => r.json())
+    .then(json => {
+      if (json.status === 'ok' && json.count > 0) {
+        if (statusEl) { statusEl.textContent = `✅ Terhubung! ${json.count} baris`; statusEl.style.color='var(--green)'; }
+        setTimeout(() => {
+          const banner = document.getElementById('setup-banner');
+          if (banner) banner.style.display = 'none';
+        }, 2000);
+        fetchAndRender();
+      } else {
+        if (statusEl) { statusEl.textContent = `❌ ${json.message || 'Respons tidak valid'}`; statusEl.style.color='var(--red)'; }
+      }
+    })
+    .catch(err => {
+      if (statusEl) { statusEl.textContent = `❌ Gagal: ${err.message}`; statusEl.style.color='var(--red)'; }
+    });
+}
+
 </script>
 </body>
 </html>
