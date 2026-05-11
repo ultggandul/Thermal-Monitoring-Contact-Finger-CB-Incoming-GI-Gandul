@@ -1404,24 +1404,27 @@
    0. CONFIGURATION — Edit this section for deployment
 ============================================================ */
 const CONFIG = {
-  // Google Sheets ID
+  // ── Google Sheets ID (tidak perlu diubah) ──────────────────
   SHEET_ID: '1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE',
-  // Sheet name (leave empty for first sheet)
   SHEET_NAME: 'Sheet1',
-  // Auto-refresh interval in ms (60000 = 1 minute)
+
+  // ── Apps Script Web App URL ────────────────────────────────
+  // Setelah deploy Google Apps Script, paste URL-nya di sini:
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/library/d/1xzrFnw3iYvl6rFsr-BSfZ_8bN-BCIs3zqoyPpEMoo855KNAf2Z_NwQyE/5',   // contoh: 'https://script.google.com/macros/s/AKfy.../exec'
+
+  // ── Auto-refresh interval ──────────────────────────────────
   REFRESH_INTERVAL: 60000,
-  // Max data points to display in trend chart
+
+  // ── Chart & analytics settings ────────────────────────────
   MAX_TREND_POINTS: 48,
-  // Temperature thresholds (°C)
   THRESH: { NORMAL: 55, MONITOR: 65, WARNING: 75 },
-  // Aging reference temperature (IEEE C57.91)
   AGING_REF_TEMP: 40,
 };
 
-/* Google Sheets JSON URL builder */
+/* ── URL builders ────────────────────────────────────────────*/
 function buildSheetURL() {
   const base = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq`;
-  const params = new URLSearchParams({ tqx: 'out:json' });
+  const params = new URLSearchParams({ tqx: 'out:json', headers: '1' });
   if (CONFIG.SHEET_NAME) params.set('sheet', CONFIG.SHEET_NAME);
   return `${base}?${params.toString()}`;
 }
@@ -1475,24 +1478,59 @@ function generateDummyData() {
    2. GOOGLE SHEETS PARSER
    Handles the gviz/tq response format
 ============================================================ */
+/* ── Parse Google Sheets gviz/tq response ────────────────── */
 function parseGvizResponse(raw) {
   try {
-    // Strip the google.visualization.Query.setResponse(...)  wrapper
-    const json = raw.replace(/^[^(]+\(/, '').replace(/\);?\s*$/, '');
+    const json = raw.replace(/^\/\*[\s\S]*?\*\/\s*/, '')  // strip /* O_o */ comment
+                    .replace(/^[^(]+\(/, '')             // strip google.visualization....(
+                    .replace(/\);?\s*$/, '');            // strip trailing );
     const data = JSON.parse(json);
-    const cols = data.table.cols.map(c => c.label);
-    const rows = data.table.rows.map(row => {
-      const obj = {};
-      row.c.forEach((cell, i) => {
-        obj[cols[i]] = cell ? cell.v : null;
+    const cols = data.table.cols.map(c => c.label || c.id || '');
+    const rows = data.table.rows
+      .filter(row => row && row.c)
+      .map(row => {
+        const obj = {};
+        row.c.forEach((cell, i) => {
+          if (!cols[i]) return;
+          obj[cols[i]] = cell ? (cell.v !== undefined ? cell.v : null) : null;
+        });
+        return obj;
       });
-      return obj;
-    });
     return { success: true, cols, rows };
   } catch (e) {
-    console.warn('Sheet parse error:', e);
+    console.warn('[THERMAL] gviz parse error:', e.message);
     return { success: false };
   }
+}
+
+/* ── Parse Google Sheets date formats ────────────────────── */
+function parseSheetDate(v) {
+  if (!v) return new Date();
+  // Already a JS Date
+  if (v instanceof Date) return isNaN(v) ? new Date() : v;
+  // Google gviz format: "Date(2024,0,15,10,30,0)"
+  if (typeof v === 'string' && v.startsWith('Date(')) {
+    const parts = v.replace('Date(','').replace(')','').split(',').map(Number);
+    // months are 0-indexed in this format
+    return new Date(parts[0], parts[1], parts[2], parts[3]||0, parts[4]||0, parts[5]||0);
+  }
+  // ISO string or other string formats
+  if (typeof v === 'string') {
+    // Try direct parse first
+    const d1 = new Date(v);
+    if (!isNaN(d1)) return d1;
+    // Try DD/MM/YYYY HH:MM:SS (common Indonesian spreadsheet format)
+    const m = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:[\s,T]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0), +(m[6]||0));
+    return new Date();
+  }
+  // Google serial number (days since Dec 30, 1899)
+  if (typeof v === 'number') {
+    const msPerDay = 86400000;
+    const epoch    = new Date(1899, 11, 30).getTime();
+    return new Date(epoch + v * msPerDay);
+  }
+  return new Date();
 }
 
 /* Map sheet columns to internal keys */
@@ -1507,16 +1545,8 @@ function mapSheetRow(raw) {
     return null;
   };
 
-  const parseTS = (v) => {
-    if (!v) return new Date();
-    if (typeof v === 'string') return new Date(v);
-    // Google Sheets date: Date(year,month-1,day,h,m,s)
-    if (typeof v === 'object' && v instanceof Date) return v;
-    return new Date();
-  };
-
   return {
-    timestamp: parseTS(find(['Timestamp','timestamp','waktu','Waktu','time','Time'])),
+    timestamp: parseSheetDate(find(['Timestamp','timestamp','waktu','Waktu','time','Time','TIMESTAMP'])),
     t2_r_atas:  +find(['Trafo 2 R Atas','trafo 2 r atas']) || 0,
     t2_r_bawah: +find(['Trafo 2 R Bawah','trafo 2 r bawah']) || 0,
     t2_s_atas:  +find(['Trafo 2 S Atas','trafo 2 s atas']) || 0,
@@ -2707,22 +2737,54 @@ function renderAll(data) {
 ============================================================ */
 async function fetchAndRender() {
   const t0 = Date.now();
+
+  // ── Strategy 1: Apps Script Web App (preferred) ───────────
+  if (CONFIG.APPS_SCRIPT_URL) {
+    try {
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, { mode: 'cors' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json.status !== 'ok' || !json.data || !json.data.length) throw new Error('Empty');
+      APP.data = json.data.map(row => ({
+        ...row,
+        timestamp: parseSheetDate(row.timestamp),
+      }));
+      APP.usingDummy = false;
+      document.getElementById('conn-source').textContent =
+        `DATASOURCE: APPS SCRIPT ✓ (${APP.data.length} rows)`;
+      document.getElementById('conn-latency').textContent =
+        `LATENCY: ${Date.now()-t0}ms`;
+      console.log(`[THERMAL] Apps Script: ${APP.data.length} rows in ${Date.now()-t0}ms`);
+      renderAll(APP.data);
+      return;
+    } catch (e) {
+      console.warn('[THERMAL] Apps Script failed:', e.message, '— trying gviz fallback');
+    }
+  }
+
+  // ── Strategy 2: gviz/tq direct (fallback) ─────────────────
   try {
     const url = buildSheetURL();
-    const res = await fetch(url, { mode: 'cors' });
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const raw = await res.text();
+    const raw  = await res.text();
     const parsed = parseGvizResponse(raw);
-    if (!parsed.success || !parsed.rows.length) throw new Error('No data');
-    APP.data = parsed.rows.map(mapSheetRow).filter(r => r.timestamp);
+    if (!parsed.success || !parsed.rows.length) throw new Error('Parse failed / empty');
+    APP.data = parsed.rows.map(mapSheetRow).filter(r => r.timestamp && !isNaN(r.timestamp));
+    if (!APP.data.length) throw new Error('All rows had invalid timestamps');
     APP.usingDummy = false;
-    document.getElementById('conn-source').textContent = 'DATASOURCE: GOOGLE SHEETS ✓';
-    console.log(`[THERMAL] Loaded ${APP.data.length} rows from Sheet in ${Date.now()-t0}ms`);
+    document.getElementById('conn-source').textContent =
+      `DATASOURCE: GOOGLE SHEETS ✓ (${APP.data.length} rows)`;
+    document.getElementById('conn-latency').textContent =
+      `LATENCY: ${Date.now()-t0}ms`;
+    console.log(`[THERMAL] gviz: ${APP.data.length} rows in ${Date.now()-t0}ms`);
   } catch (e) {
-    console.warn('[THERMAL] Sheet load failed, using simulation:', e.message);
-    APP.data = generateDummyData();
+    console.warn('[THERMAL] All sources failed, using simulation:', e.message);
+    if (!APP.data.length || APP.usingDummy) APP.data = generateDummyData();
     APP.usingDummy = true;
-    document.getElementById('conn-source').textContent = 'DATASOURCE: SIMULASI (sheet unavailable)';
+    document.getElementById('conn-source').textContent =
+      'DATASOURCE: SIMULASI — Pasang Apps Script untuk data real';
+    document.getElementById('conn-latency').textContent = 'MODE: DEMO';
   }
   renderAll(APP.data);
 }
