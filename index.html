@@ -8,7 +8,7 @@
   <!-- Google Fonts: Orbitron (futuristic headings) + Rajdhani (body) + Share Tech Mono (data) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link
-    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap"
     rel="stylesheet"
   />
 
@@ -719,6 +719,7 @@
       transition: opacity 0.6s;
     }
     #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    #loading-overlay.gone  { display: none !important; }
     .loader-logo {
       font-family: var(--font-display);
       font-size: 13px;
@@ -3189,7 +3190,15 @@ const bootInterval = setInterval(() => {
 document.addEventListener('DOMContentLoaded', () => {
   function hideOverlay() {
     const o = document.getElementById('loading-overlay');
-    if (o) { o.classList.add('hidden'); setTimeout(() => { try { o.remove(); } catch(e) {} }, 700); }
+    if (!o) return;
+    o.style.opacity = '0';
+    o.style.pointerEvents = 'none';
+    o.classList.add('hidden');
+    setTimeout(() => {
+      o.style.display = 'none';
+      o.classList.add('gone');
+      try { o.remove(); } catch(e) {}
+    }, 650);
   }
   // Failsafe bertingkat — overlay pasti hilang
   setTimeout(hideOverlay, 800);
@@ -3197,7 +3206,13 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(hideOverlay, 5000);
 
   try { startClock(); } catch(e) { console.error('startClock:', e); }
-  try { initCharts(); } catch(e) { console.error('initCharts:', e); hideOverlay(); }
+  try {
+    initCharts();
+  } catch(e) {
+    console.error('initCharts error:', e);
+  } finally {
+    hideOverlay();
+  }
 
   try {
     APP.data = generateDummyData();
