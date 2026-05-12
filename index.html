@@ -1406,6 +1406,17 @@
           <button class="ctrl-btn" onclick="setLiveTrafo(3,this)">T3</button>
           <button class="ctrl-btn" onclick="setLiveTrafo(4,this)">T4</button>
           <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 4px;"></div>
+          <span style="font-size:11px;color:var(--text-muted);">Phase:</span>
+          <button class="ctrl-btn active" id="lcPhase-all" onclick="setLCPhase('all',this)">All</button>
+          <button class="ctrl-btn" id="lcPhase-R" onclick="setLCPhase('R',this)">R</button>
+          <button class="ctrl-btn" id="lcPhase-S" onclick="setLCPhase('S',this)">S</button>
+          <button class="ctrl-btn" id="lcPhase-T" onclick="setLCPhase('T',this)">T</button>
+          <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 4px;"></div>
+          <span style="font-size:11px;color:var(--text-muted);">Posisi:</span>
+          <button class="ctrl-btn active" id="lcPos-all" onclick="setLCPosisi('all',this)">All</button>
+          <button class="ctrl-btn" id="lcPos-atas" onclick="setLCPosisi('atas',this)">Atas↑</button>
+          <button class="ctrl-btn" id="lcPos-bawah" onclick="setLCPosisi('bawah',this)">Bawah↓</button>
+          <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 4px;"></div>
           <span style="font-size:11px;color:var(--text-muted);">Channel:</span>
           <button class="ctrl-btn active" id="liveBtn-R-Atas" onclick="toggleLiveSeries('R Atas',this)">R↑</button>
           <button class="ctrl-btn active" id="liveBtn-R-Bawah" onclick="toggleLiveSeries('R Bawah',this)">R↓</button>
@@ -1448,12 +1459,38 @@
 
 
       <!-- Controls -->
+      <!-- PERIOD FILTER -->
+      <div id="period-filter-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:10px 14px;background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.1);border-radius:6px;">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">PERIODE:</span>
+        <button class="ctrl-btn" id="periBtn-30m" onclick="setLivePeriod('30m',this)">30m</button>
+        <button class="ctrl-btn" id="periBtn-1h"  onclick="setLivePeriod('1h',this)">1 Jam</button>
+        <button class="ctrl-btn active" id="periBtn-1d"  onclick="setLivePeriod('1d',this)">1 Hari</button>
+        <button class="ctrl-btn" id="periBtn-1w"  onclick="setLivePeriod('1w',this)">1 Minggu</button>
+        <button class="ctrl-btn" id="periBtn-1mo" onclick="setLivePeriod('1mo',this)">1 Bulan</button>
+        <button class="ctrl-btn" id="periBtn-1y"  onclick="setLivePeriod('1y',this)">1 Tahun</button>
+        <button class="ctrl-btn" id="periBtn-all" onclick="setLivePeriod('all',this)">All</button>
+        <div style="width:1px;height:16px;background:rgba(255,255,255,0.08);margin:0 4px;"></div>
+        <span id="period-data-info" style="font-family:var(--font-mono);font-size:10px;color:var(--cyan);">-- baris dimuat</span>
+        <div id="period-loading" style="display:none;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">⏳ Memuat...</div>
+      </div>
+
       <div id="live-data-controls">
         <div class="chart-controls">
           <button class="ctrl-btn active" onclick="setLDTrafo('all',this)">Semua Trafo</button>
           <button class="ctrl-btn" onclick="setLDTrafo('2',this)">Trafo 2</button>
           <button class="ctrl-btn" onclick="setLDTrafo('3',this)">Trafo 3</button>
           <button class="ctrl-btn" onclick="setLDTrafo('4',this)">Trafo 4</button>
+          <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
+          <span style="font-size:10px;color:var(--text-muted);">Phase:</span>
+          <button class="ctrl-btn active" id="ldPhase-all" onclick="setLDPhase('all',this)">All</button>
+          <button class="ctrl-btn" id="ldPhase-R" onclick="setLDPhase('R',this)">R</button>
+          <button class="ctrl-btn" id="ldPhase-S" onclick="setLDPhase('S',this)">S</button>
+          <button class="ctrl-btn" id="ldPhase-T" onclick="setLDPhase('T',this)">T</button>
+          <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
+          <span style="font-size:10px;color:var(--text-muted);">Posisi:</span>
+          <button class="ctrl-btn active" id="ldPos-all" onclick="setLDPosisi('all',this)">All</button>
+          <button class="ctrl-btn" id="ldPos-atas" onclick="setLDPosisi('atas',this)">Atas↑</button>
+          <button class="ctrl-btn" id="ldPos-bawah" onclick="setLDPosisi('bawah',this)">Bawah↓</button>
         </div>
         <input type="text" id="ld-search" placeholder="🔍 Cari timestamp..." oninput="filterLDTable()" />
         <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
@@ -1461,6 +1498,9 @@
           <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
         </div>
       </div>
+
+      <!-- PAGINATION -->
+      <div id="ld-pagination" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0;font-family:var(--font-mono);font-size:10px;"></div>
 
       <!-- Summary stats row -->
       <div class="data-stats-row" id="ld-stats-row">
@@ -1566,7 +1606,7 @@ const CONFIG = (function() {
   return {
     SHEET_ID        : stored.SHEET_ID         || '1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE',
     SHEET_NAME      : stored.SHEET_NAME       || 'Sheet1',
-    APPS_SCRIPT_URL : stored.APPS_SCRIPT_URL  || 'https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec',
+    APPS_SCRIPT_URL : stored.APPS_SCRIPT_URL  || '',
     REFRESH_INTERVAL: (stored.REFRESH_INTERVAL || 30) * 1000,
     MAX_TREND_POINTS: 48,
     THRESH          : { NORMAL: 55, MONITOR: 65, WARNING: 75 },
@@ -1861,6 +1901,8 @@ const Analytics = {
 ============================================================ */
 const LiveChart = {
   trafo: 2,
+  phase: 'all',   // 'all' | 'R' | 'S' | 'T'
+  posisi: 'all',  // 'all' | 'atas' | 'bawah'
   visibility: {
     'R Atas': true, 'R Bawah': true,
     'S Atas': true, 'S Bawah': true,
@@ -1868,8 +1910,30 @@ const LiveChart = {
   },
   chart: null,
   tickTimer: null,
-  liveBuffer: [], // Rolling buffer of {ts, vals}
-  MAX_LIVE_POINTS: 30,
+  liveBuffer: [],
+  MAX_LIVE_POINTS: 500,
+
+  // LTTB downsampling — smooth chart even for large datasets
+  downsample(data, maxPts) {
+    if (data.length <= maxPts) return data;
+    const out = [data[0]];
+    const bSize = (data.length - 2) / (maxPts - 2);
+    for (let i = 1; i < maxPts - 1; i++) {
+      const s = Math.floor((i-1)*bSize)+1;
+      const e = Math.min(Math.floor(i*bSize)+1, data.length-1);
+      let pick = s;
+      // Pick row with most variance in bucket
+      let maxV = -Infinity;
+      for (let j = s; j < e; j++) {
+        const vals = Object.values(data[j]).filter(v => typeof v === 'number');
+        const range = vals.length ? Math.max(...vals) - Math.min(...vals) : 0;
+        if (range > maxV) { maxV = range; pick = j; }
+      }
+      out.push(data[pick]);
+    }
+    out.push(data[data.length-1]);
+    return out;
+  },
 
   SERIES_CFG: [
     { key:'R Atas',  color:'#00d4ff', dash:null,    width:2   },
@@ -1969,37 +2033,54 @@ const LiveChart = {
 
   /** Push data from APP.data into rolling buffer and update chart */
   update(data, trafo) {
-    if (!this.chart) return; // lazy guard
+    if (!this.chart) return;
     if (!data || !data.length) return;
     const t = `t${trafo}`;
+    const ph  = this.phase;   // 'all'|'R'|'S'|'T'
+    const pos = this.posisi;  // 'all'|'atas'|'bawah'
 
-    // Build buffer from historical data (last MAX_LIVE_POINTS rows)
-    const slice = data.slice(-this.MAX_LIVE_POINTS);
-    const labels = slice.map(d => {
+    // Downsample for performance when data is large
+    const sampled = this.downsample(data, this.MAX_LIVE_POINTS);
+
+    const labels = sampled.map(d => {
       const dt = new Date(d.timestamp);
-      return `${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+      return dt.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
     });
 
     const seriesData = {
-      'R Atas':  slice.map(d => d[`${t}_r_atas`]),
-      'R Bawah': slice.map(d => d[`${t}_r_bawah`]),
-      'S Atas':  slice.map(d => d[`${t}_s_atas`]),
-      'S Bawah': slice.map(d => d[`${t}_s_bawah`]),
-      'T Atas':  slice.map(d => d[`${t}_t_atas`]),
-      'T Bawah': slice.map(d => d[`${t}_t_bawah`]),
+      'R Atas':  sampled.map(d => d[`${t}_r_atas`]),
+      'R Bawah': sampled.map(d => d[`${t}_r_bawah`]),
+      'S Atas':  sampled.map(d => d[`${t}_s_atas`]),
+      'S Bawah': sampled.map(d => d[`${t}_s_bawah`]),
+      'T Atas':  sampled.map(d => d[`${t}_t_atas`]),
+      'T Bawah': sampled.map(d => d[`${t}_t_bawah`]),
     };
+
+    // Determine visibility from phase + posisi filter + manual toggles
+    const isVisible = (key) => {
+      const [phase, direction] = key.split(' '); // 'R Atas' → ['R','Atas']
+      if (ph  !== 'all' && ph  !== phase)                   return false;
+      if (pos !== 'all' && pos !== direction.toLowerCase()) return false;
+      return this.visibility[key];
+    };
+
+    // Disable animation for large datasets
+    if (sampled.length > 300) this.chart.options.animation = false;
+    else this.chart.options.animation = { duration: 400 };
 
     this.chart.data.labels = labels;
     this.SERIES_CFG.forEach((s, i) => {
-      this.chart.data.datasets[i].data = seriesData[s.key];
-      this.chart.data.datasets[i].hidden = !this.visibility[s.key];
+      this.chart.data.datasets[i].data   = seriesData[s.key];
+      this.chart.data.datasets[i].hidden = !isVisible(s.key);
+      // Reduce point size for large datasets
+      this.chart.data.datasets[i].pointRadius = sampled.length > 200 ? 0 : 3;
     });
     this.chart.update('active');
 
     // Update live stats pills
-    this.updateStatsPills(slice, trafo);
+    this.updateStatsPills(sampled, trafo);
     // Update window info
-    document.getElementById('live-window').textContent = `Window: ${slice.length} points`;
+    document.getElementById('live-window').textContent = `Window: ${data.length} pts${data.length !== sampled.length ? ` (sampled: ${sampled.length})` : ''}`;
     // Update live timestamp
     const lastTs = new Date(data[data.length-1].timestamp);
     document.getElementById('live-ts').textContent =
@@ -2069,10 +2150,21 @@ function setLiveTrafo(num, btn) {
 function toggleLiveSeries(series, btn) {
   LiveChart.visibility[series] = !LiveChart.visibility[series];
   btn.classList.toggle('active');
-  LiveChart.chart.data.datasets.forEach((ds, i) => {
-    if (ds.label === series) ds.hidden = !LiveChart.visibility[series];
-  });
-  LiveChart.chart.update();
+  if (LiveChart.chart) LiveChart.update(APP.data, LiveChart.trafo);
+}
+
+function setLCPhase(phase, btn) {
+  LiveChart.phase = phase;
+  btn.parentElement.querySelectorAll('[id^="lcPhase-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (LiveChart.chart && APP.data.length) LiveChart.update(APP.data, LiveChart.trafo);
+}
+
+function setLCPosisi(posisi, btn) {
+  LiveChart.posisi = posisi;
+  btn.parentElement.querySelectorAll('[id^="lcPos-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (LiveChart.chart && APP.data.length) LiveChart.update(APP.data, LiveChart.trafo);
 }
 
 /* ============================================================
@@ -2884,12 +2976,15 @@ function renderAll(data) {
   document.getElementById('last-update').textContent = `Update: ${fmt}`;
   document.getElementById('conn-points').textContent = `DATAPOINTS: ${data.length}`;
   document.getElementById('conn-latency').textContent = APP.usingDummy ? 'MODE: SIMULASI' : 'LATENCY: <200ms';
+  // Update period info label
+  const piEl = document.getElementById('period-data-info');
+  if (piEl) piEl.textContent = `${data.length} baris dimuat (${POLL.currentPeriod})`;
 }
 
 /* ============================================================
    8. DATA FETCH
 ============================================================ */
-const POLL = { lastTimestamp: null, checkTimer: null, isFetching: false };
+const POLL = { lastTimestamp: null, checkTimer: null, isFetching: false, currentPeriod: '1d' };
 
 /* JSONP — bypass CORS 100%, works from any domain */
 function fetchJsonp(url) {
@@ -2907,7 +3002,7 @@ function fetchJsonp(url) {
 
 /* Lightweight check — only reads last row */
 async function checkForNewData() {
-  if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.includes('https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec')) return;
+  if (!CONFIG.APPS_SCRIPT_URL || CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) return;
   if (POLL.isFetching) return;
   try {
     const d = await fetchJsonp(CONFIG.APPS_SCRIPT_URL + '?mode=check');
@@ -2927,9 +3022,9 @@ async function fetchAndRender() {
   POLL.isFetching = true;
   const t0 = Date.now();
 
-  if (CONFIG.APPS_SCRIPT_URL && !CONFIG.APPS_SCRIPT_URL.includes('https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec')) {
+  if (CONFIG.APPS_SCRIPT_URL && !CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) {
     try {
-      const d = await fetchJsonp(CONFIG.APPS_SCRIPT_URL + '?mode=full');
+      const d = await fetchJsonp(CONFIG.APPS_SCRIPT_URL + '?mode=full&period=' + POLL.currentPeriod);
       if (!d || d.status !== 'ok' || !d.data || !d.data.length) throw new Error(d ? d.message : 'empty');
       APP.data = d.data.map(r => Object.assign({}, r, { timestamp: new Date(r.timestamp) }))
                        .filter(r => !isNaN(r.timestamp));
@@ -3072,7 +3167,11 @@ function switchTab(name, btn) {
 ============================================================ */
 const LiveData = {
   trafoFilter: 'all',
+  phaseFilter: 'all',   // 'all'|'R'|'S'|'T'
+  posisiFilter: 'all',  // 'all'|'atas'|'bawah'
   searchQuery: '',
+  currentPage: 1,
+  PAGE_SIZE: 50,
 
   COLUMNS: [
     { key: 'timestamp',  label: 'Timestamp',      group: '',       phaseClass: '' },
@@ -3097,9 +3196,21 @@ const LiveData = {
   ],
 
   getFilteredCols() {
-    if (this.trafoFilter === 'all') return this.COLUMNS;
-    const t = `t${this.trafoFilter}`;
-    return this.COLUMNS.filter(c => c.key === 'timestamp' || c.key.startsWith(t));
+    return this.COLUMNS.filter(c => {
+      if (c.key === 'timestamp') return true;
+      // Trafo filter
+      if (this.trafoFilter !== 'all' && !c.key.startsWith(`t${this.trafoFilter}`)) return false;
+      // Phase filter: key pattern is t2_r_atas → phase = r
+      if (this.phaseFilter !== 'all') {
+        const ph = c.key.split('_')[1]; // 'r','s','t'
+        if (ph !== this.phaseFilter.toLowerCase()) return false;
+      }
+      // Posisi filter: key ends with _atas or _bawah
+      if (this.posisiFilter !== 'all') {
+        if (!c.key.endsWith('_' + this.posisiFilter)) return false;
+      }
+      return true;
+    });
   },
 
   tempClass(v) {
@@ -3138,33 +3249,59 @@ const LiveData = {
   },
 
   renderRows(data) {
-    const cols = this.getFilteredCols();
+    const cols  = this.getFilteredCols();
     const query = this.searchQuery.toLowerCase();
 
     // Filter by search query
-    const filtered = data.filter(row => {
+    const filtered = [...data].reverse().filter(row => {
       if (!query) return true;
       const ts = new Date(row.timestamp).toLocaleString('id-ID');
       return ts.toLowerCase().includes(query);
     });
 
-    document.getElementById('ld-row-count').textContent = `${filtered.length} baris`;
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / this.PAGE_SIZE));
+    this.currentPage = Math.max(1, Math.min(this.currentPage, totalPages));
+    const start = (this.currentPage - 1) * this.PAGE_SIZE;
+    const pageRows = filtered.slice(start, start + this.PAGE_SIZE);
 
-    if (!filtered.length) {
+    document.getElementById('ld-row-count').textContent = `${total} baris`;
+
+    // Render pagination
+    const pgEl = document.getElementById('ld-pagination');
+    if (pgEl) {
+      if (totalPages <= 1) {
+        pgEl.innerHTML = '';
+      } else {
+        const vis = new Set([1, totalPages]);
+        for (let p = Math.max(1,this.currentPage-2); p <= Math.min(totalPages,this.currentPage+2); p++) vis.add(p);
+        const sorted = [...vis].sort((a,b)=>a-b);
+        let pgHtml = `<span style="color:var(--text-muted);">Hal ${this.currentPage}/${totalPages} · Baris ${start+1}–${Math.min(start+this.PAGE_SIZE,total)} dari ${total}</span> `;
+        pgHtml += `<button class="ctrl-btn" onclick="ldChangePage(${this.currentPage-1})" ${this.currentPage<=1?'disabled':''} style="padding:2px 8px;">‹</button> `;
+        let prev=0;
+        sorted.forEach(p => {
+          if (p-prev>1) pgHtml += `<span style="color:var(--text-muted);">…</span> `;
+          pgHtml += `<button class="ctrl-btn ${p===this.currentPage?'active':''}" onclick="ldChangePage(${p})" style="padding:2px 8px;">${p}</button> `;
+          prev=p;
+        });
+        pgHtml += `<button class="ctrl-btn" onclick="ldChangePage(${this.currentPage+1})" ${this.currentPage>=totalPages?'disabled':''} style="padding:2px 8px;">›</button>`;
+        pgEl.innerHTML = pgHtml;
+      }
+    }
+
+    if (!pageRows.length) {
       document.getElementById('ld-tbody').innerHTML =
         `<tr><td colspan="${cols.length}" style="text-align:center;padding:30px;color:var(--text-muted);">Tidak ada data</td></tr>`;
       return;
     }
 
-    // Render rows — latest first
-    const rows = [...filtered].reverse();
-    document.getElementById('ld-tbody').innerHTML = rows.map((row, idx) => {
+    document.getElementById('ld-tbody').innerHTML = pageRows.map((row, idx) => {
       const ts = new Date(row.timestamp);
       const tsStr = ts.toLocaleString('id-ID', {
         day:'2-digit', month:'short', year:'numeric',
         hour:'2-digit', minute:'2-digit', second:'2-digit'
       });
-      const isLatest = idx === 0;
+      const isLatest = (start === 0 && idx === 0);
       const cells = cols.map((c, ci) => {
         if (c.key === 'timestamp') {
           return `<td class="ts-col">${tsStr}</td>`;
@@ -3219,12 +3356,48 @@ function setLDTrafo(t, btn) {
   LiveData.trafoFilter = t;
   btn.parentElement.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  LiveData.currentPage = 1;
   renderLiveDataTable();
 }
 
 function filterLDTable() {
   LiveData.searchQuery = document.getElementById('ld-search').value;
+  LiveData.currentPage = 1;
   LiveData.renderRows(APP.data);
+}
+
+function setLDPhase(phase, btn) {
+  LiveData.phaseFilter = phase;
+  document.querySelectorAll('[id^="ldPhase-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  LiveData.currentPage = 1;
+  renderLiveDataTable();
+}
+
+function setLDPosisi(posisi, btn) {
+  LiveData.posisiFilter = posisi;
+  document.querySelectorAll('[id^="ldPos-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  LiveData.currentPage = 1;
+  renderLiveDataTable();
+}
+
+function ldChangePage(page) {
+  if (!APP.data) return;
+  LiveData.currentPage = page;
+  LiveData.renderRows(APP.data);
+}
+
+// Period filter — triggers new fetch from Apps Script
+async function setLivePeriod(period, btn) {
+  POLL.currentPeriod = period;
+  document.querySelectorAll('[id^="periBtn-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const loadEl = document.getElementById('period-loading');
+  if (loadEl) loadEl.style.display = 'inline';
+  LiveData.currentPage = 1;
+  await fetchAndRender();
+  if (loadEl) loadEl.style.display = 'none';
 }
 
 function exportCSV() {
