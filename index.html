@@ -8,7 +8,7 @@
   <!-- Google Fonts: Orbitron (futuristic headings) + Rajdhani (body) + Share Tech Mono (data) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link
-    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap"
     rel="stylesheet"
   />
 
@@ -16,9 +16,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Chart.js Annotations plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-  <!-- Zoom/Pan plugin dependencies -->
-  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
   <style>
     /* ============================================================
@@ -565,6 +562,8 @@
       transition: all 0.3s;
     }
     .rec-item:hover { background: rgba(0,212,255,0.04); border-color: rgba(0,212,255,0.15); }
+    .rec-item[onclick]:hover { background: rgba(0,212,255,0.08); border-color: rgba(0,212,255,0.3); transform:translateX(2px); transition:all 0.15s; }
+    .anomaly-clickable-row:hover td { background: rgba(0,212,255,0.05); cursor:pointer; }
     .rec-item:last-child { margin-bottom: 0; }
     .rec-priority {
       width: 28px; height: 28px;
@@ -719,7 +718,6 @@
       transition: opacity 0.6s;
     }
     #loading-overlay.hidden { opacity: 0; pointer-events: none; }
-    #loading-overlay.gone  { display: none !important; }
     .loader-logo {
       font-family: var(--font-display);
       font-size: 13px;
@@ -1045,31 +1043,6 @@
     }
     .cb-settings:hover { border-color:rgba(0,212,255,0.3); color:var(--cyan); }
 
-    /* ===== PATCH: Filter Toolbar Live Data ===== */
-    #ld-datetime-filter {
-      display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-      padding:8px 14px; margin-bottom:8px;
-      background:rgba(0,212,255,0.03);
-      border:1px solid rgba(0,212,255,0.1); border-radius:6px;
-    }
-    #ld-datetime-filter input[type="date"],
-    #ld-datetime-filter input[type="time"] {
-      font-family:var(--font-mono); font-size:11px;
-      background:rgba(0,0,0,0.3); border:1px solid rgba(0,212,255,0.2);
-      color:var(--text-primary); padding:5px 10px; border-radius:4px;
-      outline:none; cursor:pointer;
-      color-scheme: dark;
-    }
-    #ld-datetime-filter input[type="date"]:focus,
-    #ld-datetime-filter input[type="time"]:focus { border-color:var(--cyan); }
-    .lc-zoom-bar {
-      display:flex; align-items:center; gap:5px; flex-wrap:wrap;
-      margin-top:8px; padding:6px 10px;
-      background:rgba(0,0,0,0.2); border-radius:5px;
-      border:1px solid rgba(0,212,255,0.08);
-    }
-    .lc-zoom-bar span { font-family:var(--font-mono); font-size:9px; color:var(--text-muted); white-space:nowrap; }
-
   </style>
 </head>
 
@@ -1083,18 +1056,6 @@
   <div class="loader-bar-track"><div class="loader-bar"></div></div>
   <div class="loader-status" id="loader-status">INITIALIZING SENSORS...</div>
 </div>
-<script>
-// Inline failsafe — dipanggil window.onload, pasti jalan
-window.addEventListener('load', function() {
-  var o = document.getElementById('loading-overlay');
-  if (o) { o.style.opacity='0'; o.style.pointerEvents='none'; o.style.zIndex='-1'; setTimeout(function(){ o.style.display='none'; try{o.remove();}catch(e){} }, 400); }
-});
-// Nuclear: paksa hilang setelah 2 detik apapun yang terjadi
-setTimeout(function() {
-  var o = document.getElementById('loading-overlay');
-  if (o) { o.style.display='none'; try{o.remove();}catch(e){} }
-}, 2000);
-</script>
 
 <div class="page-wrapper">
 
@@ -1193,6 +1154,10 @@ setTimeout(function() {
   <nav id="tab-nav">
     <button class="tab-btn active" onclick="switchTab('dashboard', this)">
       <span class="tab-icon">📊</span>Dashboard Monitoring
+    </button>
+    <button class="tab-btn" onclick="switchTab('tabledata', this)">
+      <span class="tab-icon">🗃️</span>Tabel Live Update
+      <span class="tab-badge cyan" id="tabledata-badge">DATA</span>
     </button>
     <button class="tab-btn" onclick="switchTab('livedata', this)">
       <span class="tab-icon">📡</span>Live Data
@@ -1337,24 +1302,21 @@ setTimeout(function() {
        SECTION 4: PHASE BALANCE + HEATMAP
   =========================================================== -->
   <div class="section-row">
-    <div class="grid-2">
-
-      <!-- Phase Balance Analysis -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">Phase Balance Analysis</span>
-          <span class="card-badge" id="phase-trafo-label">ALL TRAFO</span>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center;">
-          <canvas id="phaseRadar" height="200"></canvas>
-          <div>
-            <div id="phase-imbalance">
-              <!-- Populated by JS -->
-            </div>
-          </div>
+    <!-- Phase Balance Analysis — full width -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <span class="card-title" style="font-size:15px;letter-spacing:1px;">Phase Balance Analysis</span>
+        <span class="card-badge" id="phase-trafo-label" style="font-size:11px;padding:4px 10px;">ALL TRAFO</span>
+      </div>
+      <div style="display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:center;">
+        <canvas id="phaseRadar" height="220"></canvas>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;" id="phase-imbalance">
+          <!-- Populated by JS -->
         </div>
       </div>
+    </div>
 
+    <div class="grid-2">
       <!-- Thermal Heatmap -->
       <div class="card">
         <div class="card-header">
@@ -1474,22 +1436,6 @@ setTimeout(function() {
       <!-- Chart -->
       <div style="position:relative;">
         <canvas id="liveChart" height="160"></canvas>
-        <!-- Zoom period bar -->
-        <div class="lc-zoom-bar">
-          <span>ZOOM:</span>
-          <button class="ctrl-btn" onclick="lcZoomPeriod('1H',this)">1H</button>
-          <button class="ctrl-btn" onclick="lcZoomPeriod('6H',this)">6H</button>
-          <button class="ctrl-btn" onclick="lcZoomPeriod('12H',this)">12H</button>
-          <button class="ctrl-btn" onclick="lcZoomPeriod('24H',this)">24H</button>
-          <button class="ctrl-btn" onclick="lcZoomPeriod('7D',this)">7D</button>
-          <button class="ctrl-btn" onclick="lcZoomPeriod('30D',this)">30D</button>
-          <button class="ctrl-btn active" onclick="lcZoomPeriod('ALL',this)">ALL</button>
-          <div style="width:1px;height:14px;background:rgba(255,255,255,0.08);margin:0 3px;"></div>
-          <button class="ctrl-btn" onclick="lcZoomIn()" title="Zoom In" style="padding:3px 8px;">🔍+</button>
-          <button class="ctrl-btn" onclick="lcZoomOut()" title="Zoom Out" style="padding:3px 8px;">🔍−</button>
-          <button class="ctrl-btn" onclick="lcResetZoom()" title="Reset Zoom" style="padding:3px 8px;border-color:rgba(0,212,255,0.3);color:var(--cyan);">⟳ Reset</button>
-          <span style="margin-left:auto;" id="lc-zoom-info"></span>
-        </div>
         <!-- Pulse indicator top-right -->
         <div style="position:absolute;top:6px;right:10px;display:flex;align-items:center;gap:5px;">
           <div id="live-pulse" style="width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 1.2s infinite;"></div>
@@ -1515,78 +1461,75 @@ setTimeout(function() {
 
 
 
-      <!-- Controls -->
-      <!-- PERIOD FILTER BAR -->
-      <div id="ld-datetime-filter">
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">QUICK:</span>
-        <button class="ctrl-btn active" id="qf-today" onclick="setQuickFilter('today',this)">Hari Ini</button>
-        <button class="ctrl-btn" id="qf-24h"   onclick="setQuickFilter('24h',this)">24 Jam</button>
-        <button class="ctrl-btn" id="qf-7d"    onclick="setQuickFilter('7d',this)">7 Hari</button>
-        <button class="ctrl-btn" id="qf-30d"   onclick="setQuickFilter('30d',this)">30 Hari</button>
-        <button class="ctrl-btn" id="qf-all"   onclick="setQuickFilter('all',this)">Semua Data</button>
-        <div style="width:1px;height:16px;background:rgba(255,255,255,0.08);margin:0 4px;"></div>
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">TGL:</span>
-        <input type="date" id="ld-filter-date" onchange="applyDateFilter()" title="Filter tanggal">
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">JAM:</span>
-        <input type="time" id="ld-filter-from" onchange="applyDateFilter()" title="Dari jam">
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">–</span>
-        <input type="time" id="ld-filter-to"   onchange="applyDateFilter()" title="Sampai jam">
-        <button class="ctrl-btn" onclick="clearDateFilter()" style="font-size:9px;padding:4px 8px;border-color:rgba(255,107,53,0.3);color:var(--orange);">✕ Reset</button>
-        <span id="ld-filter-status" style="font-family:var(--font-mono);font-size:10px;color:var(--cyan);margin-left:4px;"></span>
-      </div>
-      <div id="period-filter-bar" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:10px 14px;background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.1);border-radius:6px;">
-        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">PERIODE:</span>
-        <button class="ctrl-btn" id="periBtn-30m" onclick="setLivePeriod('30m',this)">30m</button>
-        <button class="ctrl-btn" id="periBtn-1h"  onclick="setLivePeriod('1h',this)">1 Jam</button>
-        <button class="ctrl-btn active" id="periBtn-1d" onclick="setLivePeriod('1d',this)">1 Hari</button>
-        <button class="ctrl-btn" id="periBtn-1w"  onclick="setLivePeriod('1w',this)">1 Minggu</button>
-        <button class="ctrl-btn" id="periBtn-1mo" onclick="setLivePeriod('1mo',this)">1 Bulan</button>
-        <button class="ctrl-btn" id="periBtn-1y"  onclick="setLivePeriod('1y',this)">1 Tahun</button>
-        <button class="ctrl-btn" id="periBtn-all" onclick="setLivePeriod('all',this)">All Data</button>
-        <div style="width:1px;height:16px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
-        <span id="period-data-info" style="font-family:var(--font-mono);font-size:10px;color:var(--cyan);">-- baris dimuat</span>
-        <span id="period-loading" style="display:none;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">⏳ Memuat...</span>
+    </div>
+  </div><!-- end tab-livedata -->
+
+  <!-- TABEL LIVE UPDATE TAB -->
+  <div id="tab-tabledata" class="tab-page">
+    <div class="section-row" style="margin-top:18px;">
+
+      <div class="section-label" style="margin-bottom:18px;">
+        <span class="label-icon">🗃️</span>
+        <span class="label-text">Tabel Live Update — Data Suhu PMT GI Gandul</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-left:8px;" id="tbl-live-dot">● UPDATING</span>
       </div>
 
-      <div id="live-data-controls">
+      <!-- CLIENT-SIDE PERIOD FILTER -->
+      <div id="tbl-period-bar" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:10px 14px;background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.1);border-radius:6px;">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">PERIODE:</span>
+        <button class="ctrl-btn" id="tblPer-30m" onclick="setTablePeriod('30m',this)">30m</button>
+        <button class="ctrl-btn" id="tblPer-1h"  onclick="setTablePeriod('1h',this)">1 Jam</button>
+        <button class="ctrl-btn" id="tblPer-6h"  onclick="setTablePeriod('6h',this)">6 Jam</button>
+        <button class="ctrl-btn active" id="tblPer-1d" onclick="setTablePeriod('1d',this)">1 Hari</button>
+        <button class="ctrl-btn" id="tblPer-1w"  onclick="setTablePeriod('1w',this)">1 Minggu</button>
+        <button class="ctrl-btn" id="tblPer-1mo" onclick="setTablePeriod('1mo',this)">1 Bulan</button>
+        <button class="ctrl-btn" id="tblPer-1y"  onclick="setTablePeriod('1y',this)">1 Tahun</button>
+        <button class="ctrl-btn" id="tblPer-all" onclick="setTablePeriod('all',this)">All Data</button>
+        <div style="width:1px;height:16px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
+        <span id="tbl-period-info" style="font-family:var(--font-mono);font-size:10px;color:var(--cyan);">-- baris</span>
+      </div>
+
+      <!-- TABLE CONTROLS -->
+      <div id="tbl-data-controls" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
         <div class="chart-controls" style="flex-wrap:wrap;gap:4px;">
-          <button class="ctrl-btn active" onclick="setLDTrafo('all',this)">Semua Trafo</button>
-          <button class="ctrl-btn" onclick="setLDTrafo('2',this)">Trafo 2</button>
-          <button class="ctrl-btn" onclick="setLDTrafo('3',this)">Trafo 3</button>
-          <button class="ctrl-btn" onclick="setLDTrafo('4',this)">Trafo 4</button>
+          <button class="ctrl-btn active" onclick="setTblTrafo('all',this)">Semua Trafo</button>
+          <button class="ctrl-btn" onclick="setTblTrafo('2',this)">Trafo 2</button>
+          <button class="ctrl-btn" onclick="setTblTrafo('3',this)">Trafo 3</button>
+          <button class="ctrl-btn" onclick="setTblTrafo('4',this)">Trafo 4</button>
           <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
           <span style="font-size:10px;color:var(--text-muted);">Phase:</span>
-          <button class="ctrl-btn active" id="ldPhase-all"   onclick="setLDPhase('all',this)">All</button>
-          <button class="ctrl-btn" id="ldPhase-R" onclick="setLDPhase('R',this)">R</button>
-          <button class="ctrl-btn" id="ldPhase-S" onclick="setLDPhase('S',this)">S</button>
-          <button class="ctrl-btn" id="ldPhase-T" onclick="setLDPhase('T',this)">T</button>
+          <button class="ctrl-btn active" id="tblPhase-all" onclick="setTblPhase('all',this)">All</button>
+          <button class="ctrl-btn" id="tblPhase-R" onclick="setTblPhase('R',this)">R</button>
+          <button class="ctrl-btn" id="tblPhase-S" onclick="setTblPhase('S',this)">S</button>
+          <button class="ctrl-btn" id="tblPhase-T" onclick="setTblPhase('T',this)">T</button>
           <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
           <span style="font-size:10px;color:var(--text-muted);">Posisi:</span>
-          <button class="ctrl-btn active" id="ldPos-all"   onclick="setLDPosisi('all',this)">All</button>
-          <button class="ctrl-btn" id="ldPos-atas"  onclick="setLDPosisi('atas',this)">Atas↑</button>
-          <button class="ctrl-btn" id="ldPos-bawah" onclick="setLDPosisi('bawah',this)">Bawah↓</button>
+          <button class="ctrl-btn active" id="tblPos-all"   onclick="setTblPosisi('all',this)">All</button>
+          <button class="ctrl-btn" id="tblPos-atas"  onclick="setTblPosisi('atas',this)">Atas↑</button>
+          <button class="ctrl-btn" id="tblPos-bawah" onclick="setTblPosisi('bawah',this)">Bawah↓</button>
+          <!-- Severity filter -->
+          <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
+          <span style="font-size:10px;color:var(--text-muted);">Filter:</span>
+          <button class="ctrl-btn active" id="tblSev-all"      onclick="setTblSev('all',this)">Semua</button>
+          <button class="ctrl-btn" id="tblSev-warning"   onclick="setTblSev('warning',this)" style="color:var(--orange);">⚠ Warning</button>
+          <button class="ctrl-btn" id="tblSev-critical"  onclick="setTblSev('critical',this)" style="color:var(--red);">🔴 Critical</button>
         </div>
-        <input type="text" id="ld-search" placeholder="🔍 Cari timestamp..." oninput="filterLDTable()" />
+        <input type="text" id="tbl-search" placeholder="🔍 Cari timestamp..." oninput="filterTblTable()" />
         <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);" id="ld-row-count">-- baris</span>
-          <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);" id="tbl-row-count">-- baris</span>
+          <button class="export-btn" onclick="exportCSVTable()">⬇ Export CSV</button>
         </div>
       </div>
-
-      <!-- PAGINATION -->
-      <div id="ld-pagination" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:6px 0;font-family:var(--font-mono);font-size:10px;"></div>
 
       <!-- Summary stats row -->
-      <div class="data-stats-row" id="ld-stats-row">
-        <!-- populated by JS -->
-      </div>
+      <div class="data-stats-row" id="tbl-stats-row"></div>
 
-      <!-- Data table -->
+      <!-- Data table - NO PAGINATION, show all rows -->
       <div class="card" style="padding:0;overflow:hidden;">
-        <div class="data-table-wrap">
-          <table id="live-data-table">
-            <thead id="ld-thead"></thead>
-            <tbody id="ld-tbody"></tbody>
+        <div class="data-table-wrap" style="max-height:70vh;overflow-y:auto;">
+          <table id="tbl-data-table">
+            <thead id="tbl-thead" style="position:sticky;top:0;z-index:2;"></thead>
+            <tbody id="tbl-tbody"></tbody>
           </table>
         </div>
       </div>
@@ -1594,10 +1537,10 @@ setTimeout(function() {
       <!-- Last update info -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">
         <span>Threshold: Normal &lt;55°C · Monitor 55–65°C · Warning 65–75°C · Critical &gt;75°C</span>
-        <span id="ld-last-update">Last fetch: --</span>
+        <span id="tbl-last-update">Last fetch: --</span>
       </div>
     </div>
-  </div><!-- end tab-livedata -->
+  </div><!-- end tab-tabledata -->
 
   <!-- ===========================================================
        FOOTER
@@ -2028,7 +1971,8 @@ const LiveChart = {
           backgroundColor: 'transparent',
           borderWidth: s.width,
           borderDash: s.dash || [],
-          tension: 0.35,
+          tension: 0.5,
+            cubicInterpolationMode: 'monotone',
           pointRadius: 0,
           pointHoverRadius: 5,
           pointHoverBackgroundColor: s.color,
@@ -2632,7 +2576,8 @@ function renderTrend(data, trafo) {
       borderColor: '#00d4ff',
       backgroundColor: 'rgba(0,212,255,0.05)',
       borderWidth: 2,
-      tension: 0.4,
+      tension: 0.5,
+            cubicInterpolationMode: 'monotone',
       fill: true,
       pointRadius: 0,
       pointHoverRadius: 4,
@@ -2644,7 +2589,8 @@ function renderTrend(data, trafo) {
       borderColor: '#ff6b35',
       backgroundColor: 'rgba(255,107,53,0.04)',
       borderWidth: 2,
-      tension: 0.4,
+      tension: 0.5,
+            cubicInterpolationMode: 'monotone',
       fill: false,
       pointRadius: 0,
       pointHoverRadius: 4,
@@ -2656,7 +2602,8 @@ function renderTrend(data, trafo) {
       borderColor: '#ffd700',
       backgroundColor: 'rgba(255,215,0,0.04)',
       borderWidth: 2,
-      tension: 0.4,
+      tension: 0.5,
+            cubicInterpolationMode: 'monotone',
       fill: false,
       pointRadius: 0,
       pointHoverRadius: 4,
@@ -2667,7 +2614,8 @@ function renderTrend(data, trafo) {
       data: sBawahData,
       borderColor: 'rgba(255,107,53,0.4)',
       borderWidth: 1.2,
-      tension: 0.4,
+      tension: 0.5,
+            cubicInterpolationMode: 'monotone',
       borderDash: [4,3],
       fill: false,
       pointRadius: 0,
@@ -2680,7 +2628,8 @@ function renderTrend(data, trafo) {
       borderColor: 'rgba(0,212,255,0.3)',
       borderWidth: 1,
       borderDash: [6,3],
-      tension: 0.4,
+      tension: 0.5,
+            cubicInterpolationMode: 'monotone',
       fill: false,
       pointRadius: 0,
       hidden: !APP.trendVisibility.R,
@@ -2797,10 +2746,16 @@ function renderAnomalyDetection(data) {
   else                    { badge.textContent='NORMAL'; badge.style.background='rgba(0,255,136,0.1)'; badge.style.color='#00ff88'; badge.style.border='1px solid rgba(0,255,136,0.2)'; }
 
   // Anomaly table
-  document.getElementById('anomaly-tbody').innerHTML = results.map(r => `
-    <tr>
+  document.getElementById('anomaly-tbody').innerHTML = results.map(r => {
+    const trafoNum = r.equipment.match(/Trafo (\d)/)?.[1] || 'all';
+    const isAlert = r.status === 'critical' || r.status === 'warning';
+    const rowClick = isAlert
+      ? `onclick="navigateToTableWithFilter('${trafoNum}','${r.status}')" style="cursor:pointer;" title="Klik untuk lihat data di tabel"`
+      : '';
+    return `
+    <tr ${rowClick} ${isAlert ? 'class="anomaly-clickable-row"' : ''}>
       <td style="font-family:var(--font-mono);font-size:11px;color:var(--cyan);">${r.equipment}</td>
-      <td style="font-size:11px;">${r.type}</td>
+      <td style="font-size:11px;">${r.type}${isAlert ? ' <span style=\"font-size:9px;color:var(--cyan);opacity:0.7;\">→ tabel</span>' : ''}</td>
       <td>
         <div style="display:flex;align-items:center;gap:6px;">
           <div style="flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
@@ -2813,7 +2768,8 @@ function renderAnomalyDetection(data) {
       <td><span class="pill ${r.status}">${r.status.toUpperCase()}</span></td>
       <td style="font-size:11px;color:var(--text-secondary);">${r.action}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 /* ---- Phase Radar ---- */
@@ -2833,23 +2789,39 @@ function renderPhaseRadar(data) {
   APP.charts.radar.data.datasets[1].data = bawahData;
   APP.charts.radar.update();
 
-  // Phase imbalance panel
+  // Phase imbalance panel — new 3-col card layout
   let html = '';
   trafos.forEach(t => {
     const lt = Analytics.latest(data, t);
     if (!lt) return;
     const dp = Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas);
     const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+    const dpColor = dp>15?'var(--red)':dp>8?'var(--orange)':'var(--green)';
+    const tColor  = Analytics.severity(maxT)==='critical'?'var(--red)':Analytics.severity(maxT)==='warning'?'var(--orange)':Analytics.severity(maxT)==='monitor'?'var(--yellow)':'var(--green)';
     html += `
-      <div class="aging-row">
-        <span class="aging-label">Trafo ${t} · ΔPhase</span>
-        <span class="aging-value ${dp>15?'crit':dp>8?'warn':''}">${dp.toFixed(1)}°C</span>
+      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:14px 16px;">
+        <div style="font-family:var(--font-display);font-size:11px;letter-spacing:2px;color:var(--text-muted);margin-bottom:10px;">TRAFO ${t}</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:var(--text-secondary);">ΔPhase Imbalance</span>
+            <span style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:${dpColor};">${dp.toFixed(1)}°C</span>
+          </div>
+          <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+            <div style="width:${Math.min(100,dp/20*100)}%;height:100%;background:${dpColor};border-radius:2px;transition:width 0.5s;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+            <span style="font-size:12px;color:var(--text-secondary);">Max Temp</span>
+            <span style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:${tColor};">${maxT.toFixed(1)}°C</span>
+          </div>
+          <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+            <div style="width:${Math.min(100,maxT/90*100)}%;height:100%;background:${tColor};border-radius:2px;transition:width 0.5s;"></div>
+          </div>
+          <div style="text-align:right;margin-top:4px;">
+            <span class="pill ${Analytics.severity(maxT)}" style="font-size:10px;">${Analytics.severity(maxT).toUpperCase()}</span>
+          </div>
+        </div>
       </div>
-      <div class="aging-row">
-        <span class="aging-label">Trafo ${t} · MaxTemp</span>
-        <span class="aging-value ${Analytics.severity(maxT)!=='normal'?Analytics.severity(maxT)==='critical'?'crit':'warn':''}">${maxT.toFixed(1)}°C</span>
-      </div>
-    `;
+    \`;
   });
   document.getElementById('phase-imbalance').innerHTML = html;
 }
@@ -2977,16 +2949,25 @@ function renderMaintenance(data) {
   const order = { p1:0, p2:1, p3:2, p4:3 };
   recs.sort((a,b) => order[a.priority] - order[b.priority]);
 
-  document.getElementById('maintenance-recs').innerHTML = recs.map(r => `
-    <div class="rec-item">
+  document.getElementById('maintenance-recs').innerHTML = recs.map(r => {
+    const isClickable = r.priority === 'p1' || r.priority === 'p2';
+    const trafoNum = r.target.match(/Trafo (\d)/)?.[1] || 'all';
+    const sevFilter = r.priority === 'p1' ? 'critical' : 'warning';
+    const clickAttr = isClickable
+      ? `onclick="navigateToTableWithFilter('${trafoNum}','${sevFilter}')" style="cursor:pointer;" title="Klik untuk lihat data ${sevFilter} di tabel"`
+      : '';
+    const clickIndicator = isClickable ? `<span style="font-family:var(--font-mono);font-size:9px;color:var(--cyan);margin-left:auto;opacity:0.7;">🔍 LIHAT DATA →</span>` : '';
+    return `
+    <div class="rec-item" ${clickAttr}>
       <div class="rec-priority ${r.priority}">${r.priority.replace('p','').toUpperCase()}</div>
-      <div class="rec-content">
-        <div class="rec-action">${r.action}</div>
+      <div class="rec-content" style="flex:1;">
+        <div class="rec-action" style="display:flex;align-items:center;gap:6px;">${r.action}${clickIndicator}</div>
         <div class="rec-reason">${r.reason}</div>
         <div class="rec-target">▸ ${r.target}</div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 /* ---- System Status Badge ---- */
@@ -3027,7 +3008,11 @@ function renderAll(data) {
   try { if (LiveChart.chart) { LiveChart.update(data, LiveChart.trafo); LiveChart.flashPulse(); } } catch(e) {}
   // Update live data tab if it's currently active
   if (document.getElementById('tab-livedata').classList.contains('active')) {
-    renderLiveDataTable();
+    // no table in livedata anymore
+  }
+  // Update table tab if active
+  if (document.getElementById('tab-tabledata') && document.getElementById('tab-tabledata').classList.contains('active')) {
+    renderTableView();
   }
   // Update badge count
   const critN = document.querySelectorAll('.tc-critical').length;
@@ -3199,37 +3184,26 @@ const bootInterval = setInterval(() => {
   if (bootStep >= BOOT_MESSAGES.length) clearInterval(bootInterval);
 }, 300);
 
-/* ── Global hideOverlay — bisa dipanggil dari mana saja ── */
-window._hideOverlay = function() {
-  const o = document.getElementById('loading-overlay');
-  if (!o) return;
-  o.style.transition = 'opacity 0.4s';
-  o.style.opacity = '0';
-  o.style.pointerEvents = 'none';
-  o.style.zIndex = '-1';
-  setTimeout(() => { o.style.display = 'none'; try { o.remove(); } catch(e) {} }, 450);
-};
-
 document.addEventListener('DOMContentLoaded', () => {
-  // Failsafe mutlak — overlay PASTI hilang paling lambat 1.5 detik
-  setTimeout(window._hideOverlay, 500);
-  setTimeout(window._hideOverlay, 1000);
-  setTimeout(window._hideOverlay, 1500);
-  setTimeout(window._hideOverlay, 3000);
+  // Failsafe: overlay PASTI hilang setelah 5 detik
+  function hideOverlay() {
+    const o = document.getElementById('loading-overlay');
+    if (o) { o.classList.add('hidden'); setTimeout(() => { try { o.remove(); } catch(e) {} }, 700); }
+  }
+  setTimeout(hideOverlay, 5000);
 
   try { startClock(); } catch(e) { console.error('startClock:', e); }
-
   try { initCharts(); } catch(e) { console.error('initCharts:', e); }
-
-  window._hideOverlay();  // hide segera setelah init
 
   try {
     APP.data = generateDummyData();
     renderAll(APP.data);
   } catch(e) { console.error('initial render:', e); }
 
-  window._hideOverlay();  // hide lagi setelah render
+  // Hide overlay setelah dummy data tampil
+  setTimeout(hideOverlay, 1800);
 
+  // Mulai smart polling (fetch + auto-check setiap interval)
   setTimeout(() => {
     try { startPolling(); } catch(e) { console.warn('startPolling:', e); }
   }, 400);
@@ -3243,12 +3217,41 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`tab-${name}`).classList.add('active');
   btn.classList.add('active');
-  // Update live data table when switching to it
   if (name === 'livedata') {
     if (!LiveChart.chart) { try { LiveChart.init(); } catch(e) { console.warn('LC init:',e); } }
-    renderLiveDataTable();
     if (APP.data && APP.data.length) { try { LiveChart.update(APP.data, LiveChart.trafo); } catch(e) {} }
   }
+  if (name === 'tabledata') {
+    if (APP.data && APP.data.length) renderTableView();
+  }
+}
+
+/* Navigate to table tab with pre-applied filter */
+function navigateToTableWithFilter(trafoNum, severity) {
+  // Find the tabledata tab button and click it
+  const tbBtn = document.querySelector(".tab-btn[onclick*=\"tabledata\"]");
+  if (tbBtn) switchTab('tabledata', tbBtn);
+  // Apply filters after a short delay to allow render
+  setTimeout(() => {
+    // Set trafo filter
+    TableView.trafoFilter = trafoNum === 'all' ? 'all' : trafoNum;
+    document.querySelectorAll('#tbl-data-controls .ctrl-btn').forEach(b => {
+      if (b.getAttribute('onclick') && b.getAttribute('onclick').includes('setTblTrafo')) {
+        b.classList.remove('active');
+        if (b.getAttribute('onclick').includes(`'${trafoNum}'`) || (trafoNum==='all' && b.getAttribute('onclick').includes("'all'")))
+          b.classList.add('active');
+      }
+    });
+    // Set severity filter
+    TableView.severityFilter = severity;
+    document.querySelectorAll('[id^="tblSev-"]').forEach(b => b.classList.remove('active'));
+    const sevBtn = document.getElementById(`tblSev-${severity}`);
+    if (sevBtn) sevBtn.classList.add('active');
+    renderTableView();
+    // Scroll to top of table
+    const wrap = document.querySelector('#tab-tabledata .data-table-wrap');
+    if (wrap) wrap.scrollTop = 0;
+  }, 80);
 }
 
 /* ============================================================
@@ -3423,293 +3426,218 @@ function renderLiveDataTable() {
 }
 
 /* ============================================================
-   PATCH: Date/Time Quick Filter + Sort + Debounce — LiveData
+   TABLE VIEW (Tab: Tabel Live Update) — no pagination, full data
 ============================================================ */
-LiveData.dateFilter = null;
-LiveData.sortAsc    = false;
+const TableView = {
+  trafoFilter:    'all',
+  phaseFilter:    'all',
+  posisiFilter:   'all',
+  severityFilter: 'all',   // 'all'|'warning'|'critical'
+  searchQuery:    '',
+  timePeriod:     '1d',    // client-side time window
 
-// Debounce helper
-const _ldDebounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(()=>fn(...a), ms); }; };
+  COLUMNS: [
+    { key: 'timestamp',  label: 'Timestamp',  group: '',       phaseClass: '' },
+    { key: 't2_r_atas',  label: 'R Atas',     group: 'TRAFO 2', phaseClass: 'phase-R' },
+    { key: 't2_r_bawah', label: 'R Bawah',    group: '',       phaseClass: 'phase-R' },
+    { key: 't2_s_atas',  label: 'S Atas',     group: '',       phaseClass: 'phase-S' },
+    { key: 't2_s_bawah', label: 'S Bawah',    group: '',       phaseClass: 'phase-S' },
+    { key: 't2_t_atas',  label: 'T Atas',     group: '',       phaseClass: 'phase-T' },
+    { key: 't2_t_bawah', label: 'T Bawah',    group: '',       phaseClass: 'phase-T' },
+    { key: 't3_r_atas',  label: 'R Atas',     group: 'TRAFO 3', phaseClass: 'phase-R' },
+    { key: 't3_r_bawah', label: 'R Bawah',    group: '',       phaseClass: 'phase-R' },
+    { key: 't3_s_atas',  label: 'S Atas',     group: '',       phaseClass: 'phase-S' },
+    { key: 't3_s_bawah', label: 'S Bawah',    group: '',       phaseClass: 'phase-S' },
+    { key: 't3_t_atas',  label: 'T Atas',     group: '',       phaseClass: 'phase-T' },
+    { key: 't3_t_bawah', label: 'T Bawah',    group: '',       phaseClass: 'phase-T' },
+    { key: 't4_r_atas',  label: 'R Atas',     group: 'TRAFO 4', phaseClass: 'phase-R' },
+    { key: 't4_r_bawah', label: 'R Bawah',    group: '',       phaseClass: 'phase-R' },
+    { key: 't4_s_atas',  label: 'S Atas',     group: '',       phaseClass: 'phase-S' },
+    { key: 't4_s_bawah', label: 'S Bawah',    group: '',       phaseClass: 'phase-S' },
+    { key: 't4_t_atas',  label: 'T Atas',     group: '',       phaseClass: 'phase-T' },
+    { key: 't4_t_bawah', label: 'T Bawah',    group: '',       phaseClass: 'phase-T' },
+  ],
 
-// Debounce filterLDTable
-const _filterLDTableOrig = filterLDTable;
-window.filterLDTable = _ldDebounce(function() {
-  LiveData.searchQuery = document.getElementById('ld-search').value;
-  LiveData.currentPage = 1;
-  LiveData.renderRows(APP.data);
-}, 250);
-
-// Quick filter buttons
-function setQuickFilter(key, btn) {
-  document.querySelectorAll('[id^="qf-"]').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const now = new Date();
-  if (key === 'all') {
-    LiveData.dateFilter = null;
-  } else {
-    const msMap = { today: 0, '24h': 864e5, '7d': 6048e5, '30d': 2592e6 };
-    const from  = key === 'today'
-      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
-      : new Date(now - msMap[key]);
-    LiveData.dateFilter = { from, to: null };
-  }
-  const dateEl = document.getElementById('ld-filter-date');
-  if (key === 'today' && dateEl) dateEl.value = now.toISOString().slice(0,10);
-  else if (dateEl && key !== 'all') dateEl.value = '';
-  _updateLdFilterStatus();
-  LiveData.currentPage = 1;
-  LiveData.renderRows(APP.data);
-}
-
-// Date/time range filter
-function applyDateFilter() {
-  const dateStr = (document.getElementById('ld-filter-date') || {}).value || '';
-  const fromStr = (document.getElementById('ld-filter-from') || {}).value || '';
-  const toStr   = (document.getElementById('ld-filter-to')   || {}).value || '';
-  if (!dateStr && !fromStr && !toStr) {
-    LiveData.dateFilter = null; _updateLdFilterStatus(); LiveData.renderRows(APP.data); return;
-  }
-  let fromTs = null, toTs = null;
-  if (dateStr) {
-    const [y,m,d] = dateStr.split('-').map(Number);
-    if (fromStr) { const [hf,mf] = fromStr.split(':').map(Number); fromTs = new Date(y,m-1,d,hf,mf,0); }
-    else fromTs = new Date(y,m-1,d,0,0,0);
-    if (toStr)   { const [ht,mt] = toStr.split(':').map(Number);   toTs   = new Date(y,m-1,d,ht,mt,59); }
-    else toTs = new Date(y,m-1,d,23,59,59);
-  } else {
-    const now = new Date();
-    if (fromStr) { const [h,mm] = fromStr.split(':').map(Number); fromTs = new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,mm); }
-    if (toStr)   { const [h,mm] = toStr.split(':').map(Number);   toTs   = new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,mm,59); }
-  }
-  LiveData.dateFilter = { from: fromTs, to: toTs };
-  document.querySelectorAll('[id^="qf-"]').forEach(b => b.classList.remove('active'));
-  _updateLdFilterStatus();
-  LiveData.currentPage = 1;
-  LiveData.renderRows(APP.data);
-}
-
-function clearDateFilter() {
-  LiveData.dateFilter = null;
-  ['ld-filter-date','ld-filter-from','ld-filter-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  document.querySelectorAll('[id^="qf-"]').forEach(b => b.classList.remove('active'));
-  const allBtn = document.getElementById('qf-all');
-  if (allBtn) allBtn.classList.add('active');
-  _updateLdFilterStatus();
-  LiveData.currentPage = 1;
-  LiveData.renderRows(APP.data);
-}
-
-function _updateLdFilterStatus() {
-  const el = document.getElementById('ld-filter-status');
-  if (!el) return;
-  if (!LiveData.dateFilter) { el.textContent = ''; return; }
-  const { from, to } = LiveData.dateFilter;
-  const fmt = d => d ? d.toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '…';
-  el.textContent = `Filter: ${fmt(from)} → ${fmt(to || new Date())}`;
-}
-
-// Override renderRows dengan date filter + sort support
-LiveData.renderRows = function(data) {
-  const cols  = this.getFilteredCols();
-  const query = this.searchQuery.toLowerCase();
-  const df    = this.dateFilter;
-
-  // Sort
-  let filtered = [...data].sort((a,b) => {
-    const at = new Date(a.timestamp), bt = new Date(b.timestamp);
-    return this.sortAsc ? at - bt : bt - at;
-  });
-
-  // Date filter
-  if (df) {
-    filtered = filtered.filter(row => {
-      const ts = new Date(row.timestamp);
-      if (df.from && ts < df.from) return false;
-      if (df.to   && ts > df.to)   return false;
+  getFilteredCols() {
+    return this.COLUMNS.filter(c => {
+      if (c.key === 'timestamp') return true;
+      if (this.trafoFilter  !== 'all' && !c.key.startsWith(`t${this.trafoFilter}`)) return false;
+      if (this.phaseFilter  !== 'all' && c.key.split('_')[1] !== this.phaseFilter.toLowerCase()) return false;
+      if (this.posisiFilter !== 'all' && !c.key.endsWith('_' + this.posisiFilter)) return false;
       return true;
     });
-  }
+  },
 
-  // Search filter
-  if (query) {
-    filtered = filtered.filter(row =>
-      new Date(row.timestamp).toLocaleString('id-ID').toLowerCase().includes(query)
-    );
-  }
+  getTimeWindow() {
+    const now = Date.now();
+    const map = { '30m': 30*60e3, '1h': 60*60e3, '6h': 6*3600e3, '1d': 86400e3,
+                  '1w': 7*86400e3, '1mo': 30*86400e3, '1y': 365*86400e3 };
+    return map[this.timePeriod] || null; // null = all
+  },
 
-  const total      = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / this.PAGE_SIZE));
-  this.currentPage = Math.max(1, Math.min(this.currentPage, totalPages));
-  const start      = (this.currentPage - 1) * this.PAGE_SIZE;
-  const pageRows   = filtered.slice(start, start + this.PAGE_SIZE);
+  tempClass(v) {
+    if (!v || v <= 0) return '';
+    if (v < 55) return 'tc-normal';
+    if (v < 65) return 'tc-monitor';
+    if (v < 75) return 'tc-warning';
+    return 'tc-critical';
+  },
 
-  document.getElementById('ld-row-count').textContent =
-    (df || query) ? `${total} / ${data.length} baris` : `${total} baris`;
+  rowHasSeverity(row, sev) {
+    const keys = Object.keys(row).filter(k => k !== 'timestamp');
+    return keys.some(k => {
+      const v = row[k];
+      if (!v || v <= 0) return false;
+      if (sev === 'critical') return v >= 75;
+      if (sev === 'warning')  return v >= 65;
+      return false;
+    });
+  },
 
-  // Pagination
-  const pgEl = document.getElementById('ld-pagination');
-  if (pgEl) {
-    if (totalPages <= 1) { pgEl.innerHTML = ''; }
-    else {
-      const vis = new Set([1, totalPages]);
-      for (let p = Math.max(1,this.currentPage-2); p <= Math.min(totalPages,this.currentPage+2); p++) vis.add(p);
-      const sorted = [...vis].sort((a,b)=>a-b);
-      let pg = `<span style="color:var(--text-muted)">Hal ${this.currentPage}/${totalPages} · Baris ${start+1}–${Math.min(start+this.PAGE_SIZE,total)} dari ${total}</span> `;
-      pg += `<button class="ctrl-btn" onclick="ldPage(${this.currentPage-1})" ${this.currentPage<=1?'disabled':''} style="padding:2px 8px">‹</button> `;
-      let prev=0;
-      sorted.forEach(p => {
-        if (p-prev>1) pg += `<span style="color:var(--text-muted)">…</span> `;
-        pg += `<button class="ctrl-btn ${p===this.currentPage?'active':''}" onclick="ldPage(${p})" style="padding:2px 8px">${p}</button> `;
-        prev=p;
-      });
-      pg += `<button class="ctrl-btn" onclick="ldPage(${this.currentPage+1})" ${this.currentPage>=totalPages?'disabled':''} style="padding:2px 8px">›</button>`;
-      pgEl.innerHTML = pg;
-    }
-  }
+  renderHeader() {
+    const cols = this.getFilteredCols();
+    const groups = [];
+    let curGroup = '', curSpan = 0;
+    cols.forEach(c => {
+      if (c.group) { if (curGroup) groups.push({label:curGroup,span:curSpan}); curGroup=c.group; curSpan=1; }
+      else if (curGroup) curSpan++;
+      else groups.push({label:'',span:1});
+    });
+    if (curGroup) groups.push({label:curGroup,span:curSpan});
 
-  if (!pageRows.length) {
-    document.getElementById('ld-tbody').innerHTML =
-      `<tr><td colspan="${cols.length}" style="text-align:center;padding:30px;color:var(--text-muted);">Tidak ada data yang cocok dengan filter</td></tr>`;
-    return;
-  }
+    const groupRow = groups.map(g =>
+      g.label
+        ? `<th colspan="${g.span}" class="th-group" style="text-align:center;border-left:2px solid rgba(0,212,255,0.15);position:sticky;top:0;">${g.label}</th>`
+        : `<th class="th-group" style="position:sticky;top:0;"></th>`
+    ).join('');
 
-  document.getElementById('ld-tbody').innerHTML = pageRows.map((row, idx) => {
-    const ts    = new Date(row.timestamp);
-    const tsStr = ts.toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    const cells = cols.map(c => {
-      if (c.key === 'timestamp') return `<td class="ts-col">${tsStr}</td>`;
-      const v   = row[c.key];
-      const cls = this.tempClass(v);
-      const bl  = c.group ? 'border-left:2px solid rgba(0,212,255,0.1);' : '';
-      return `<td class="${cls}" style="${bl}">${(v&&v>0) ? v.toFixed(1)+'°' : '—'}</td>`;
+    const colRow = cols.map(c => {
+      const bl = c.group ? 'border-left:2px solid rgba(0,212,255,0.15);' : '';
+      return `<th class="${c.phaseClass}" style="${bl}position:sticky;top:0;">${c.label}</th>`;
     }).join('');
-    return `<tr class="${start===0&&idx===0?'latest-row':''}">${cells}</tr>`;
-  }).join('');
 
-  document.getElementById('ld-last-update').textContent = `Last fetch: ${new Date().toLocaleTimeString('id-ID')}`;
+    document.getElementById('tbl-thead').innerHTML = `<tr>${groupRow}</tr><tr>${colRow}</tr>`;
+  },
+
+  render(data) {
+    const cols  = this.getFilteredCols();
+    const query = this.searchQuery.toLowerCase();
+    const win   = this.getTimeWindow();
+    const now   = Date.now();
+
+    // Client-side time filtering + trafo/severity/search filters
+    const filtered = [...data].reverse().filter(row => {
+      if (win && (now - row.timestamp) > win) return false;
+      if (query && !new Date(row.timestamp).toLocaleString('id-ID').toLowerCase().includes(query)) return false;
+      if (this.severityFilter !== 'all' && !this.rowHasSeverity(row, this.severityFilter)) return false;
+      return true;
+    });
+
+    const total = filtered.length;
+    document.getElementById('tbl-row-count').textContent = `${total} baris`;
+    document.getElementById('tbl-period-info').textContent = `${total} baris dimuat`;
+
+    if (!total) {
+      document.getElementById('tbl-tbody').innerHTML =
+        `<tr><td colspan="${cols.length}" style="text-align:center;padding:30px;color:var(--text-muted);">Tidak ada data untuk periode ini</td></tr>`;
+      return;
+    }
+
+    // Render ALL rows (no pagination)
+    document.getElementById('tbl-tbody').innerHTML = filtered.map((row, idx) => {
+      const ts    = new Date(row.timestamp);
+      const tsStr = ts.toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const cells = cols.map(c => {
+        if (c.key === 'timestamp') return `<td class="ts-col">${tsStr}</td>`;
+        const v   = row[c.key];
+        const cls = this.tempClass(v);
+        const bl  = c.group ? 'border-left:2px solid rgba(0,212,255,0.1);' : '';
+        return `<td class="${cls}" style="${bl}">${(v&&v>0) ? v.toFixed(1)+'°' : '—'}</td>`;
+      }).join('');
+      return `<tr class="${idx===0?'latest-row':''}">${cells}</tr>`;
+    }).join('');
+
+    document.getElementById('tbl-last-update').textContent = `Last fetch: ${new Date().toLocaleTimeString('id-ID')}`;
+
+    // Stats
+    const allVals = filtered.flatMap(row => Object.keys(row).filter(k=>k!=='timestamp').map(k=>row[k]).filter(v=>v>0));
+    if (allVals.length) {
+      const maxV = Math.max(...allVals);
+      const minV = Math.min(...allVals);
+      const avgV = +(allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1);
+      const critCount = allVals.filter(v => v >= 75).length;
+      const warnCount = allVals.filter(v => v >= 65 && v < 75).length;
+      document.getElementById('tbl-stats-row').innerHTML = [
+        { lbl: 'Total Baris',    val: total,                  color: 'var(--cyan)'   },
+        { lbl: 'Suhu Max',       val: maxV.toFixed(1)+'°C',   color: Analytics.tempColor(maxV) },
+        { lbl: 'Suhu Min',       val: minV.toFixed(1)+'°C',   color: 'var(--green)'  },
+        { lbl: 'Rata-rata',      val: avgV+'°C',              color: Analytics.tempColor(avgV) },
+        { lbl: 'Warning Count',  val: warnCount,              color: 'var(--orange)' },
+        { lbl: 'Critical Count', val: critCount,              color: critCount>0?'var(--red)':'var(--text-muted)' },
+      ].map(s => `<div class="data-stat-box"><div class="dsb-val" style="color:${s.color};">${s.val}</div><div class="dsb-lbl">${s.lbl}</div></div>`).join('');
+    }
+  },
 };
 
-// Override renderHeader: tambah sortable timestamp
-LiveData.renderHeader = function() {
-  const cols = this.getFilteredCols();
-  const groups = [];
-  let curGroup = '', curSpan = 0;
-  cols.forEach(c => {
-    if (c.group) { if (curGroup) groups.push({label:curGroup,span:curSpan}); curGroup=c.group; curSpan=1; }
-    else if (curGroup) curSpan++;
-    else groups.push({label:'',span:1});
-  });
-  if (curGroup) groups.push({label:curGroup,span:curSpan});
-
-  const groupRow = groups.map(g =>
-    g.label
-      ? `<th colspan="${g.span}" class="th-group" style="text-align:center;border-left:2px solid rgba(0,212,255,0.15);">${g.label}</th>`
-      : `<th class="th-group"></th>`
-  ).join('');
-
-  const colRow = cols.map((c) => {
-    const borderLeft = c.group ? 'border-left:2px solid rgba(0,212,255,0.15);' : '';
-    if (c.key === 'timestamp') {
-      const arrow = this.sortAsc ? '▲' : '▼';
-      return `<th class="${c.phaseClass}" style="${borderLeft}cursor:pointer;user-select:none;" onclick="LiveData.sortAsc=!LiveData.sortAsc;LiveData.currentPage=1;LiveData.renderRows(APP.data);">
-        ${c.label} <span style="color:var(--cyan);font-size:9px;">${arrow}</span>
-      </th>`;
-    }
-    return `<th class="${c.phaseClass}" style="${borderLeft}">${c.label}</th>`;
-  }).join('');
-
-  document.getElementById('ld-thead').innerHTML = `<tr>${groupRow}</tr><tr>${colRow}</tr>`;
-};
-
-/* ============================================================
-   PATCH: LiveChart Zoom/Pan — chartjs-plugin-zoom
-============================================================ */
-(function patchLiveChartZoom() {
-  const _origInit = LiveChart.init.bind(LiveChart);
-  LiveChart.init = function() {
-    _origInit();
-    if (!this.chart) return;
-    // Guard: only apply zoom if plugin is loaded
-    const zoomLoaded = typeof window.Chart !== 'undefined' &&
-      Chart.registry && Chart.registry.plugins &&
-      (Chart.registry.plugins.get('zoom') !== undefined || typeof Hammer !== 'undefined');
-    if (zoomLoaded) {
-      try {
-        this.chart.options.plugins.zoom = {
-          zoom: {
-            wheel: { enabled: true, speed: 0.08 },
-            pinch: { enabled: true },
-            drag: {
-              enabled: true,
-              backgroundColor: 'rgba(0,212,255,0.06)',
-              borderColor: 'rgba(0,212,255,0.4)',
-              borderWidth: 1,
-              threshold: 10,
-            },
-            mode: 'x',
-            onZoomComplete({ chart }) { _lcUpdateZoomInfo(chart); }
-          },
-          pan: {
-            enabled: true,
-            mode: 'x',
-            threshold: 5,
-            onPanComplete({ chart }) { _lcUpdateZoomInfo(chart); }
-          },
-          limits: { x: { min: 'original', max: 'original' } },
-        };
-        this.chart.update();
-      } catch(e) { console.warn('[zoom patch]', e.message); }
-    } else {
-      console.info('[LiveChart] zoom plugin tidak tersedia — scroll/drag zoom dinonaktifkan');
-    }
-  };
-})();
-
-function _lcUpdateZoomInfo(chart) {
-  const el = document.getElementById('lc-zoom-info');
-  if (!el || !chart || !chart.scales.x) return;
-  const { min, max } = chart.scales.x;
-  if (min === undefined || max === undefined) { el.textContent = ''; return; }
-  const labels = chart.data.labels;
-  const lMin = labels[Math.max(0, Math.round(min))];
-  const lMax = labels[Math.min(labels.length-1, Math.round(max))];
-  if (lMin && lMax && lMin !== lMax) el.textContent = `${lMin} → ${lMax}`;
-  else el.textContent = '';
+function renderTableView() {
+  if (!APP.data || !APP.data.length) return;
+  TableView.renderHeader();
+  TableView.render(APP.data);
 }
 
-function lcResetZoom() {
-  if (!LiveChart.chart) return;
-  try { LiveChart.chart.resetZoom(); } catch(e) { return; }
-  document.querySelectorAll('.lc-zoom-bar .ctrl-btn[onclick*="lcZoomPeriod"]').forEach(b=>b.classList.remove('active'));
-  const allBtn = document.querySelector('.lc-zoom-bar .ctrl-btn[onclick*="ALL"]');
-  if (allBtn) allBtn.classList.add('active');
-  const el = document.getElementById('lc-zoom-info');
-  if (el) el.textContent = '';
-}
-
-function lcZoomIn()  { try { if (LiveChart.chart) LiveChart.chart.zoom(1.3); } catch(e) {} }
-function lcZoomOut() { try { if (LiveChart.chart) LiveChart.chart.zoom(0.75); } catch(e) {} }
-
-function lcZoomPeriod(period, btn) {
-  if (!LiveChart.chart || !LiveChart.chart.data.labels.length) return;
-  document.querySelectorAll('.lc-zoom-bar .ctrl-btn[onclick*="lcZoomPeriod"]').forEach(b=>b.classList.remove('active'));
+function setTablePeriod(period, btn) {
+  TableView.timePeriod = period;
+  document.querySelectorAll('[id^="tblPer-"]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  if (period === 'ALL') { lcResetZoom(); btn.classList.add('active'); return; }
-  const data = APP.data;
-  if (!data || !data.length) return;
-  const hrMap = { '1H':1, '6H':6, '12H':12, '24H':24, '7D':168, '30D':720 };
-  const hrs   = hrMap[period] || 24;
-  const lastTs = new Date(data[data.length-1].timestamp);
-  const cutoff = new Date(lastTs - hrs * 36e5);
-  const labels = LiveChart.chart.data.labels;
-  const total  = labels.length;
-  // Map cutoff to sampled index proportionally
-  const cutoffIdx = data.findIndex(d => new Date(d.timestamp) >= cutoff);
-  if (cutoffIdx < 0) return;
-  const ratio    = cutoffIdx / data.length;
-  const startIdx = Math.max(0, Math.floor(ratio * total));
-  LiveChart.chart.zoomScale('x', { min: startIdx, max: total - 1 }, 'none');
-  _lcUpdateZoomInfo(LiveChart.chart);
+  renderTableView();
+}
+function setTblTrafo(t, btn) {
+  TableView.trafoFilter = t;
+  btn.parentElement.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTableView();
+}
+function setTblPhase(phase, btn) {
+  TableView.phaseFilter = phase;
+  document.querySelectorAll('[id^="tblPhase-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTableView();
+}
+function setTblPosisi(posisi, btn) {
+  TableView.posisiFilter = posisi;
+  document.querySelectorAll('[id^="tblPos-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTableView();
+}
+function setTblSev(sev, btn) {
+  TableView.severityFilter = sev;
+  document.querySelectorAll('[id^="tblSev-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTableView();
+}
+function filterTblTable() {
+  TableView.searchQuery = document.getElementById('tbl-search').value;
+  renderTableView();
+}
+function exportCSVTable() {
+  if (!APP.data || !APP.data.length) return;
+  const cols = TableView.getFilteredCols();
+  const win  = TableView.getTimeWindow();
+  const now  = Date.now();
+  const rows = [...APP.data].reverse().filter(r => !win || (now - r.timestamp) <= win);
+  const header = cols.map(c => c.key).join(',');
+  const lines  = rows.map(row => cols.map(c => {
+    if (c.key === 'timestamp') return `"${new Date(row.timestamp).toLocaleString('id-ID')}"`;
+    return row[c.key] !== undefined ? row[c.key] : '';
+  }).join(','));
+  const csv  = [header, ...lines].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `PMT_Thermal_Tabel_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function setLDTrafo(t, btn) {
