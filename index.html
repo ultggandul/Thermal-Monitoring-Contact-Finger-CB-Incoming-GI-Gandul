@@ -3187,25 +3187,25 @@ const bootInterval = setInterval(() => {
 }, 300);
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Failsafe: overlay PASTI hilang setelah 5 detik
   function hideOverlay() {
     const o = document.getElementById('loading-overlay');
     if (o) { o.classList.add('hidden'); setTimeout(() => { try { o.remove(); } catch(e) {} }, 700); }
   }
+  // Failsafe bertingkat — overlay pasti hilang
+  setTimeout(hideOverlay, 800);
+  setTimeout(hideOverlay, 2500);
   setTimeout(hideOverlay, 5000);
 
   try { startClock(); } catch(e) { console.error('startClock:', e); }
-  try { initCharts(); } catch(e) { console.error('initCharts:', e); }
+  try { initCharts(); } catch(e) { console.error('initCharts:', e); hideOverlay(); }
 
   try {
     APP.data = generateDummyData();
     renderAll(APP.data);
   } catch(e) { console.error('initial render:', e); }
 
-  // Hide overlay setelah dummy data tampil
-  setTimeout(hideOverlay, 1800);
+  hideOverlay();
 
-  // Mulai smart polling (fetch + auto-check setiap interval)
   setTimeout(() => {
     try { startPolling(); } catch(e) { console.warn('startPolling:', e); }
   }, 400);
@@ -3605,29 +3605,39 @@ LiveData.renderHeader = function() {
   LiveChart.init = function() {
     _origInit();
     if (!this.chart) return;
-    this.chart.options.plugins.zoom = {
-      zoom: {
-        wheel: { enabled: true, speed: 0.08 },
-        pinch: { enabled: true },
-        drag: {
-          enabled: true,
-          backgroundColor: 'rgba(0,212,255,0.06)',
-          borderColor: 'rgba(0,212,255,0.4)',
-          borderWidth: 1,
-          threshold: 10,
-        },
-        mode: 'x',
-        onZoomComplete({ chart }) { _lcUpdateZoomInfo(chart); }
-      },
-      pan: {
-        enabled: true,
-        mode: 'x',
-        threshold: 5,
-        onPanComplete({ chart }) { _lcUpdateZoomInfo(chart); }
-      },
-      limits: { x: { min: 'original', max: 'original' } },
-    };
-    this.chart.update();
+    // Guard: only apply zoom if plugin is loaded
+    const zoomLoaded = typeof window.Chart !== 'undefined' &&
+      Chart.registry && Chart.registry.plugins &&
+      (Chart.registry.plugins.get('zoom') !== undefined || typeof Hammer !== 'undefined');
+    if (zoomLoaded) {
+      try {
+        this.chart.options.plugins.zoom = {
+          zoom: {
+            wheel: { enabled: true, speed: 0.08 },
+            pinch: { enabled: true },
+            drag: {
+              enabled: true,
+              backgroundColor: 'rgba(0,212,255,0.06)',
+              borderColor: 'rgba(0,212,255,0.4)',
+              borderWidth: 1,
+              threshold: 10,
+            },
+            mode: 'x',
+            onZoomComplete({ chart }) { _lcUpdateZoomInfo(chart); }
+          },
+          pan: {
+            enabled: true,
+            mode: 'x',
+            threshold: 5,
+            onPanComplete({ chart }) { _lcUpdateZoomInfo(chart); }
+          },
+          limits: { x: { min: 'original', max: 'original' } },
+        };
+        this.chart.update();
+      } catch(e) { console.warn('[zoom patch]', e.message); }
+    } else {
+      console.info('[LiveChart] zoom plugin tidak tersedia — scroll/drag zoom dinonaktifkan');
+    }
   };
 })();
 
@@ -3645,7 +3655,7 @@ function _lcUpdateZoomInfo(chart) {
 
 function lcResetZoom() {
   if (!LiveChart.chart) return;
-  LiveChart.chart.resetZoom();
+  try { LiveChart.chart.resetZoom(); } catch(e) { return; }
   document.querySelectorAll('.lc-zoom-bar .ctrl-btn[onclick*="lcZoomPeriod"]').forEach(b=>b.classList.remove('active'));
   const allBtn = document.querySelector('.lc-zoom-bar .ctrl-btn[onclick*="ALL"]');
   if (allBtn) allBtn.classList.add('active');
@@ -3653,8 +3663,8 @@ function lcResetZoom() {
   if (el) el.textContent = '';
 }
 
-function lcZoomIn()  { if (LiveChart.chart) LiveChart.chart.zoom(1.3); }
-function lcZoomOut() { if (LiveChart.chart) LiveChart.chart.zoom(0.75); }
+function lcZoomIn()  { try { if (LiveChart.chart) LiveChart.chart.zoom(1.3); } catch(e) {} }
+function lcZoomOut() { try { if (LiveChart.chart) LiveChart.chart.zoom(0.75); } catch(e) {} }
 
 function lcZoomPeriod(period, btn) {
   if (!LiveChart.chart || !LiveChart.chart.data.labels.length) return;
