@@ -16,6 +16,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Chart.js Annotations plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <!-- Zoom/Pan plugin dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
   <style>
     /* ============================================================
@@ -1041,6 +1044,31 @@
     }
     .cb-settings:hover { border-color:rgba(0,212,255,0.3); color:var(--cyan); }
 
+    /* ===== PATCH: Filter Toolbar Live Data ===== */
+    #ld-datetime-filter {
+      display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+      padding:8px 14px; margin-bottom:8px;
+      background:rgba(0,212,255,0.03);
+      border:1px solid rgba(0,212,255,0.1); border-radius:6px;
+    }
+    #ld-datetime-filter input[type="date"],
+    #ld-datetime-filter input[type="time"] {
+      font-family:var(--font-mono); font-size:11px;
+      background:rgba(0,0,0,0.3); border:1px solid rgba(0,212,255,0.2);
+      color:var(--text-primary); padding:5px 10px; border-radius:4px;
+      outline:none; cursor:pointer;
+      color-scheme: dark;
+    }
+    #ld-datetime-filter input[type="date"]:focus,
+    #ld-datetime-filter input[type="time"]:focus { border-color:var(--cyan); }
+    .lc-zoom-bar {
+      display:flex; align-items:center; gap:5px; flex-wrap:wrap;
+      margin-top:8px; padding:6px 10px;
+      background:rgba(0,0,0,0.2); border-radius:5px;
+      border:1px solid rgba(0,212,255,0.08);
+    }
+    .lc-zoom-bar span { font-family:var(--font-mono); font-size:9px; color:var(--text-muted); white-space:nowrap; }
+
   </style>
 </head>
 
@@ -1433,6 +1461,22 @@
       <!-- Chart -->
       <div style="position:relative;">
         <canvas id="liveChart" height="160"></canvas>
+        <!-- Zoom period bar -->
+        <div class="lc-zoom-bar">
+          <span>ZOOM:</span>
+          <button class="ctrl-btn" onclick="lcZoomPeriod('1H',this)">1H</button>
+          <button class="ctrl-btn" onclick="lcZoomPeriod('6H',this)">6H</button>
+          <button class="ctrl-btn" onclick="lcZoomPeriod('12H',this)">12H</button>
+          <button class="ctrl-btn" onclick="lcZoomPeriod('24H',this)">24H</button>
+          <button class="ctrl-btn" onclick="lcZoomPeriod('7D',this)">7D</button>
+          <button class="ctrl-btn" onclick="lcZoomPeriod('30D',this)">30D</button>
+          <button class="ctrl-btn active" onclick="lcZoomPeriod('ALL',this)">ALL</button>
+          <div style="width:1px;height:14px;background:rgba(255,255,255,0.08);margin:0 3px;"></div>
+          <button class="ctrl-btn" onclick="lcZoomIn()" title="Zoom In" style="padding:3px 8px;">🔍+</button>
+          <button class="ctrl-btn" onclick="lcZoomOut()" title="Zoom Out" style="padding:3px 8px;">🔍−</button>
+          <button class="ctrl-btn" onclick="lcResetZoom()" title="Reset Zoom" style="padding:3px 8px;border-color:rgba(0,212,255,0.3);color:var(--cyan);">⟳ Reset</button>
+          <span style="margin-left:auto;" id="lc-zoom-info"></span>
+        </div>
         <!-- Pulse indicator top-right -->
         <div style="position:absolute;top:6px;right:10px;display:flex;align-items:center;gap:5px;">
           <div id="live-pulse" style="width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 1.2s infinite;"></div>
@@ -1460,6 +1504,23 @@
 
       <!-- Controls -->
       <!-- PERIOD FILTER BAR -->
+      <div id="ld-datetime-filter">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">QUICK:</span>
+        <button class="ctrl-btn active" id="qf-today" onclick="setQuickFilter('today',this)">Hari Ini</button>
+        <button class="ctrl-btn" id="qf-24h"   onclick="setQuickFilter('24h',this)">24 Jam</button>
+        <button class="ctrl-btn" id="qf-7d"    onclick="setQuickFilter('7d',this)">7 Hari</button>
+        <button class="ctrl-btn" id="qf-30d"   onclick="setQuickFilter('30d',this)">30 Hari</button>
+        <button class="ctrl-btn" id="qf-all"   onclick="setQuickFilter('all',this)">Semua Data</button>
+        <div style="width:1px;height:16px;background:rgba(255,255,255,0.08);margin:0 4px;"></div>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">TGL:</span>
+        <input type="date" id="ld-filter-date" onchange="applyDateFilter()" title="Filter tanggal">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">JAM:</span>
+        <input type="time" id="ld-filter-from" onchange="applyDateFilter()" title="Dari jam">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">–</span>
+        <input type="time" id="ld-filter-to"   onchange="applyDateFilter()" title="Sampai jam">
+        <button class="ctrl-btn" onclick="clearDateFilter()" style="font-size:9px;padding:4px 8px;border-color:rgba(255,107,53,0.3);color:var(--orange);">✕ Reset</button>
+        <span id="ld-filter-status" style="font-family:var(--font-mono);font-size:10px;color:var(--cyan);margin-left:4px;"></span>
+      </div>
       <div id="period-filter-bar" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:10px 14px;background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.1);border-radius:6px;">
         <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">PERIODE:</span>
         <button class="ctrl-btn" id="periBtn-30m" onclick="setLivePeriod('30m',this)">30m</button>
@@ -1606,7 +1667,7 @@ const CONFIG = (function() {
   return {
     SHEET_ID        : stored.SHEET_ID         || '1aGFzkAfeF3V8ly9j3ydrxGweBiyM0MSlYfhal-LwBoE',
     SHEET_NAME      : stored.SHEET_NAME       || 'Sheet1',
-    APPS_SCRIPT_URL : stored.APPS_SCRIPT_URL  || 'https://script.google.com/macros/s/AKfycbwqKzWXszbPoMBYXk87dAXBb97FzrsuUp06OBp6PEvp47L_PW1YyoTsJYdD1hc8U1bz/exec',
+    APPS_SCRIPT_URL : stored.APPS_SCRIPT_URL  || 'https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec',
     REFRESH_INTERVAL: (stored.REFRESH_INTERVAL || 30) * 1000,
     MAX_TREND_POINTS: 48,
     THRESH          : { NORMAL: 55, MONITOR: 65, WARNING: 75 },
@@ -3337,7 +3398,287 @@ function renderLiveDataTable() {
   LiveData.renderStats(APP.data);
 }
 
-function setLDTrafo(t, btn) {
+/* ============================================================
+   PATCH: Date/Time Quick Filter + Sort + Debounce — LiveData
+============================================================ */
+LiveData.dateFilter = null;
+LiveData.sortAsc    = false;
+
+// Debounce helper
+const _ldDebounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(()=>fn(...a), ms); }; };
+
+// Debounce filterLDTable
+const _filterLDTableOrig = filterLDTable;
+window.filterLDTable = _ldDebounce(function() {
+  LiveData.searchQuery = document.getElementById('ld-search').value;
+  LiveData.currentPage = 1;
+  LiveData.renderRows(APP.data);
+}, 250);
+
+// Quick filter buttons
+function setQuickFilter(key, btn) {
+  document.querySelectorAll('[id^="qf-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const now = new Date();
+  if (key === 'all') {
+    LiveData.dateFilter = null;
+  } else {
+    const msMap = { today: 0, '24h': 864e5, '7d': 6048e5, '30d': 2592e6 };
+    const from  = key === 'today'
+      ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      : new Date(now - msMap[key]);
+    LiveData.dateFilter = { from, to: null };
+  }
+  const dateEl = document.getElementById('ld-filter-date');
+  if (key === 'today' && dateEl) dateEl.value = now.toISOString().slice(0,10);
+  else if (dateEl && key !== 'all') dateEl.value = '';
+  _updateLdFilterStatus();
+  LiveData.currentPage = 1;
+  LiveData.renderRows(APP.data);
+}
+
+// Date/time range filter
+function applyDateFilter() {
+  const dateStr = (document.getElementById('ld-filter-date') || {}).value || '';
+  const fromStr = (document.getElementById('ld-filter-from') || {}).value || '';
+  const toStr   = (document.getElementById('ld-filter-to')   || {}).value || '';
+  if (!dateStr && !fromStr && !toStr) {
+    LiveData.dateFilter = null; _updateLdFilterStatus(); LiveData.renderRows(APP.data); return;
+  }
+  let fromTs = null, toTs = null;
+  if (dateStr) {
+    const [y,m,d] = dateStr.split('-').map(Number);
+    if (fromStr) { const [hf,mf] = fromStr.split(':').map(Number); fromTs = new Date(y,m-1,d,hf,mf,0); }
+    else fromTs = new Date(y,m-1,d,0,0,0);
+    if (toStr)   { const [ht,mt] = toStr.split(':').map(Number);   toTs   = new Date(y,m-1,d,ht,mt,59); }
+    else toTs = new Date(y,m-1,d,23,59,59);
+  } else {
+    const now = new Date();
+    if (fromStr) { const [h,mm] = fromStr.split(':').map(Number); fromTs = new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,mm); }
+    if (toStr)   { const [h,mm] = toStr.split(':').map(Number);   toTs   = new Date(now.getFullYear(),now.getMonth(),now.getDate(),h,mm,59); }
+  }
+  LiveData.dateFilter = { from: fromTs, to: toTs };
+  document.querySelectorAll('[id^="qf-"]').forEach(b => b.classList.remove('active'));
+  _updateLdFilterStatus();
+  LiveData.currentPage = 1;
+  LiveData.renderRows(APP.data);
+}
+
+function clearDateFilter() {
+  LiveData.dateFilter = null;
+  ['ld-filter-date','ld-filter-from','ld-filter-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.querySelectorAll('[id^="qf-"]').forEach(b => b.classList.remove('active'));
+  const allBtn = document.getElementById('qf-all');
+  if (allBtn) allBtn.classList.add('active');
+  _updateLdFilterStatus();
+  LiveData.currentPage = 1;
+  LiveData.renderRows(APP.data);
+}
+
+function _updateLdFilterStatus() {
+  const el = document.getElementById('ld-filter-status');
+  if (!el) return;
+  if (!LiveData.dateFilter) { el.textContent = ''; return; }
+  const { from, to } = LiveData.dateFilter;
+  const fmt = d => d ? d.toLocaleString('id-ID',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '…';
+  el.textContent = `Filter: ${fmt(from)} → ${fmt(to || new Date())}`;
+}
+
+// Override renderRows dengan date filter + sort support
+LiveData.renderRows = function(data) {
+  const cols  = this.getFilteredCols();
+  const query = this.searchQuery.toLowerCase();
+  const df    = this.dateFilter;
+
+  // Sort
+  let filtered = [...data].sort((a,b) => {
+    const at = new Date(a.timestamp), bt = new Date(b.timestamp);
+    return this.sortAsc ? at - bt : bt - at;
+  });
+
+  // Date filter
+  if (df) {
+    filtered = filtered.filter(row => {
+      const ts = new Date(row.timestamp);
+      if (df.from && ts < df.from) return false;
+      if (df.to   && ts > df.to)   return false;
+      return true;
+    });
+  }
+
+  // Search filter
+  if (query) {
+    filtered = filtered.filter(row =>
+      new Date(row.timestamp).toLocaleString('id-ID').toLowerCase().includes(query)
+    );
+  }
+
+  const total      = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / this.PAGE_SIZE));
+  this.currentPage = Math.max(1, Math.min(this.currentPage, totalPages));
+  const start      = (this.currentPage - 1) * this.PAGE_SIZE;
+  const pageRows   = filtered.slice(start, start + this.PAGE_SIZE);
+
+  document.getElementById('ld-row-count').textContent =
+    (df || query) ? `${total} / ${data.length} baris` : `${total} baris`;
+
+  // Pagination
+  const pgEl = document.getElementById('ld-pagination');
+  if (pgEl) {
+    if (totalPages <= 1) { pgEl.innerHTML = ''; }
+    else {
+      const vis = new Set([1, totalPages]);
+      for (let p = Math.max(1,this.currentPage-2); p <= Math.min(totalPages,this.currentPage+2); p++) vis.add(p);
+      const sorted = [...vis].sort((a,b)=>a-b);
+      let pg = `<span style="color:var(--text-muted)">Hal ${this.currentPage}/${totalPages} · Baris ${start+1}–${Math.min(start+this.PAGE_SIZE,total)} dari ${total}</span> `;
+      pg += `<button class="ctrl-btn" onclick="ldPage(${this.currentPage-1})" ${this.currentPage<=1?'disabled':''} style="padding:2px 8px">‹</button> `;
+      let prev=0;
+      sorted.forEach(p => {
+        if (p-prev>1) pg += `<span style="color:var(--text-muted)">…</span> `;
+        pg += `<button class="ctrl-btn ${p===this.currentPage?'active':''}" onclick="ldPage(${p})" style="padding:2px 8px">${p}</button> `;
+        prev=p;
+      });
+      pg += `<button class="ctrl-btn" onclick="ldPage(${this.currentPage+1})" ${this.currentPage>=totalPages?'disabled':''} style="padding:2px 8px">›</button>`;
+      pgEl.innerHTML = pg;
+    }
+  }
+
+  if (!pageRows.length) {
+    document.getElementById('ld-tbody').innerHTML =
+      `<tr><td colspan="${cols.length}" style="text-align:center;padding:30px;color:var(--text-muted);">Tidak ada data yang cocok dengan filter</td></tr>`;
+    return;
+  }
+
+  document.getElementById('ld-tbody').innerHTML = pageRows.map((row, idx) => {
+    const ts    = new Date(row.timestamp);
+    const tsStr = ts.toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const cells = cols.map(c => {
+      if (c.key === 'timestamp') return `<td class="ts-col">${tsStr}</td>`;
+      const v   = row[c.key];
+      const cls = this.tempClass(v);
+      const bl  = c.group ? 'border-left:2px solid rgba(0,212,255,0.1);' : '';
+      return `<td class="${cls}" style="${bl}">${(v&&v>0) ? v.toFixed(1)+'°' : '—'}</td>`;
+    }).join('');
+    return `<tr class="${start===0&&idx===0?'latest-row':''}">${cells}</tr>`;
+  }).join('');
+
+  document.getElementById('ld-last-update').textContent = `Last fetch: ${new Date().toLocaleTimeString('id-ID')}`;
+};
+
+// Override renderHeader: tambah sortable timestamp
+LiveData.renderHeader = function() {
+  const cols = this.getFilteredCols();
+  const groups = [];
+  let curGroup = '', curSpan = 0;
+  cols.forEach(c => {
+    if (c.group) { if (curGroup) groups.push({label:curGroup,span:curSpan}); curGroup=c.group; curSpan=1; }
+    else if (curGroup) curSpan++;
+    else groups.push({label:'',span:1});
+  });
+  if (curGroup) groups.push({label:curGroup,span:curSpan});
+
+  const groupRow = groups.map(g =>
+    g.label
+      ? `<th colspan="${g.span}" class="th-group" style="text-align:center;border-left:2px solid rgba(0,212,255,0.15);">${g.label}</th>`
+      : `<th class="th-group"></th>`
+  ).join('');
+
+  const colRow = cols.map((c) => {
+    const borderLeft = c.group ? 'border-left:2px solid rgba(0,212,255,0.15);' : '';
+    if (c.key === 'timestamp') {
+      const arrow = this.sortAsc ? '▲' : '▼';
+      return `<th class="${c.phaseClass}" style="${borderLeft}cursor:pointer;user-select:none;" onclick="LiveData.sortAsc=!LiveData.sortAsc;LiveData.currentPage=1;LiveData.renderRows(APP.data);">
+        ${c.label} <span style="color:var(--cyan);font-size:9px;">${arrow}</span>
+      </th>`;
+    }
+    return `<th class="${c.phaseClass}" style="${borderLeft}">${c.label}</th>`;
+  }).join('');
+
+  document.getElementById('ld-thead').innerHTML = `<tr>${groupRow}</tr><tr>${colRow}</tr>`;
+};
+
+/* ============================================================
+   PATCH: LiveChart Zoom/Pan — chartjs-plugin-zoom
+============================================================ */
+(function patchLiveChartZoom() {
+  const _origInit = LiveChart.init.bind(LiveChart);
+  LiveChart.init = function() {
+    _origInit();
+    if (!this.chart) return;
+    this.chart.options.plugins.zoom = {
+      zoom: {
+        wheel: { enabled: true, speed: 0.08 },
+        pinch: { enabled: true },
+        drag: {
+          enabled: true,
+          backgroundColor: 'rgba(0,212,255,0.06)',
+          borderColor: 'rgba(0,212,255,0.4)',
+          borderWidth: 1,
+          threshold: 10,
+        },
+        mode: 'x',
+        onZoomComplete({ chart }) { _lcUpdateZoomInfo(chart); }
+      },
+      pan: {
+        enabled: true,
+        mode: 'x',
+        threshold: 5,
+        onPanComplete({ chart }) { _lcUpdateZoomInfo(chart); }
+      },
+      limits: { x: { min: 'original', max: 'original' } },
+    };
+    this.chart.update();
+  };
+})();
+
+function _lcUpdateZoomInfo(chart) {
+  const el = document.getElementById('lc-zoom-info');
+  if (!el || !chart || !chart.scales.x) return;
+  const { min, max } = chart.scales.x;
+  if (min === undefined || max === undefined) { el.textContent = ''; return; }
+  const labels = chart.data.labels;
+  const lMin = labels[Math.max(0, Math.round(min))];
+  const lMax = labels[Math.min(labels.length-1, Math.round(max))];
+  if (lMin && lMax && lMin !== lMax) el.textContent = `${lMin} → ${lMax}`;
+  else el.textContent = '';
+}
+
+function lcResetZoom() {
+  if (!LiveChart.chart) return;
+  LiveChart.chart.resetZoom();
+  document.querySelectorAll('.lc-zoom-bar .ctrl-btn[onclick*="lcZoomPeriod"]').forEach(b=>b.classList.remove('active'));
+  const allBtn = document.querySelector('.lc-zoom-bar .ctrl-btn[onclick*="ALL"]');
+  if (allBtn) allBtn.classList.add('active');
+  const el = document.getElementById('lc-zoom-info');
+  if (el) el.textContent = '';
+}
+
+function lcZoomIn()  { if (LiveChart.chart) LiveChart.chart.zoom(1.3); }
+function lcZoomOut() { if (LiveChart.chart) LiveChart.chart.zoom(0.75); }
+
+function lcZoomPeriod(period, btn) {
+  if (!LiveChart.chart || !LiveChart.chart.data.labels.length) return;
+  document.querySelectorAll('.lc-zoom-bar .ctrl-btn[onclick*="lcZoomPeriod"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if (period === 'ALL') { lcResetZoom(); btn.classList.add('active'); return; }
+  const data = APP.data;
+  if (!data || !data.length) return;
+  const hrMap = { '1H':1, '6H':6, '12H':12, '24H':24, '7D':168, '30D':720 };
+  const hrs   = hrMap[period] || 24;
+  const lastTs = new Date(data[data.length-1].timestamp);
+  const cutoff = new Date(lastTs - hrs * 36e5);
+  const labels = LiveChart.chart.data.labels;
+  const total  = labels.length;
+  // Map cutoff to sampled index proportionally
+  const cutoffIdx = data.findIndex(d => new Date(d.timestamp) >= cutoff);
+  if (cutoffIdx < 0) return;
+  const ratio    = cutoffIdx / data.length;
+  const startIdx = Math.max(0, Math.floor(ratio * total));
+  LiveChart.chart.zoomScale('x', { min: startIdx, max: total - 1 }, 'none');
+  _lcUpdateZoomInfo(LiveChart.chart);
+}
+
+
   LiveData.trafoFilter = t;
   btn.parentElement.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
