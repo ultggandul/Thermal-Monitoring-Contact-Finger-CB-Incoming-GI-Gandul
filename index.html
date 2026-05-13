@@ -683,6 +683,130 @@
     .delta-box .db-val { font-family: var(--font-mono); font-size: 14px; margin-top: 4px; }
 
     /* ============================================================
+       PHASE BALANCE ANALYSIS — Compact redesign
+    ============================================================ */
+    .phase-balance-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    .phase-radar-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .phase-radar-canvas-box {
+      width: 240px;
+      height: 220px;
+      position: relative;
+    }
+    .phase-radar-legend {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .phase-radar-legend .leg-dot {
+      display: inline-block;
+      width: 8px; height: 2px;
+      border-radius: 1px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    .phase-imbalance-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .phase-trafo-card {
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .phase-trafo-card .ptc-title {
+      font-family: var(--font-display);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .phase-trafo-card .ptc-metric {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .phase-trafo-card .ptc-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .phase-trafo-card .ptc-val {
+      font-family: var(--font-mono);
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .ptc-bar {
+      height: 3px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .ptc-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+    /* Delta panel — small 3-item grid */
+    .phase-delta-panel {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .phase-delta-chip {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 6px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .phase-delta-chip .pdc-pair {
+      font-family: var(--font-display);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-bottom: 3px;
+    }
+    .phase-delta-chip .pdc-val {
+      font-family: var(--font-mono);
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .phase-delta-chip .pdc-status {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      margin-top: 3px;
+    }
+    .pdc-normal  .pdc-status { color: var(--green); }
+    .pdc-warning .pdc-status { color: var(--orange); }
+    .pdc-critical .pdc-status { color: var(--red); }
+
+    @media (max-width: 900px) {
+      .phase-balance-layout { grid-template-columns: 1fr; }
+      .phase-radar-canvas-box { width: 200px; height: 185px; margin: 0 auto; }
+      .phase-imbalance-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ============================================================
        FOOTER
     ============================================================ */
     #main-footer {
@@ -848,7 +972,7 @@
     .tab-page.active { display: block; }
 
     /* ============================================================
-       LIVE DATA TABLE
+       LIVE DATA TABLE — Enhanced
     ============================================================ */
     #live-data-controls {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -867,75 +991,178 @@
       transition: border-color 0.2s;
     }
     #live-data-controls input:focus { border-color: rgba(0,212,255,0.5); }
+
+    /* Table wrapper with proper scroll */
     .data-table-wrap {
       overflow-x: auto;
       overflow-y: auto;
-      max-height: 560px;
-      border-radius: 6px;
-      border: 1px solid rgba(0,212,255,0.12);
+      max-height: 72vh;
+      border-radius: 0 0 6px 6px;
+      border: 1px solid rgba(0,212,255,0.18);
+      border-top: none;
+      background: var(--bg-card);
+      /* Custom scrollbar */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0,212,255,0.3) transparent;
     }
-    #live-data-table {
+    .data-table-wrap::-webkit-scrollbar { width: 7px; height: 7px; }
+    .data-table-wrap::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+    .data-table-wrap::-webkit-scrollbar-thumb { background: rgba(0,212,255,0.3); border-radius: 4px; }
+    .data-table-wrap::-webkit-scrollbar-corner { background: transparent; }
+
+    /* Virtual scroll container */
+    .vscroll-spacer-top, .vscroll-spacer-bottom { pointer-events: none; }
+
+    /* Table header bar above the scroll area */
+    .tbl-header-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: rgba(0,212,255,0.04);
+      border: 1px solid rgba(0,212,255,0.18);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+    }
+
+    /* Main table */
+    #tbl-data-table, #live-data-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 12px;
-      min-width: 900px;
+      min-width: 960px;
+      table-layout: fixed;
     }
-    #live-data-table thead {
+
+    /* Thead sticky */
+    #tbl-data-table thead, #live-data-table thead {
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 20;
     }
-    #live-data-table th {
-      background: #111e30;
-      font-family: var(--font-body);
-      font-size: 10px;
+
+    /* Group header row (TRAFO labels) */
+    .th-group {
+      background: #0d1a2e !important;
+      font-family: var(--font-display) !important;
+      font-size: 9px !important;
+      letter-spacing: 2.5px !important;
+      text-transform: uppercase;
+      color: var(--cyan) !important;
+      padding: 7px 10px !important;
+      text-align: center !important;
+      border-bottom: 1px solid rgba(0,212,255,0.12) !important;
+      white-space: nowrap;
+    }
+    .th-group:not(:empty) {
+      border-top: 2px solid rgba(0,212,255,0.25) !important;
+      border-left: 2px solid rgba(0,212,255,0.25) !important;
+      border-right: 1px solid rgba(0,212,255,0.1) !important;
+    }
+
+    /* Column header row */
+    #tbl-data-table th, #live-data-table th {
+      background: #101c2e;
+      font-family: var(--font-display);
+      font-size: 9.5px;
       font-weight: 700;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
       text-transform: uppercase;
       color: var(--text-muted);
-      padding: 10px 12px;
+      padding: 9px 10px;
       text-align: center;
-      border-bottom: 2px solid rgba(0,212,255,0.15);
+      border-bottom: 2px solid rgba(0,212,255,0.2);
+      border-right: 1px solid rgba(255,255,255,0.04);
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    #live-data-table th.phase-R { color: #00d4ff; }
-    #live-data-table th.phase-S { color: #ff6b35; }
-    #live-data-table th.phase-T { color: #ffd700; }
-    #live-data-table td {
-      padding: 8px 12px;
+    #tbl-data-table th:last-child, #live-data-table th:last-child { border-right: none; }
+    #tbl-data-table th.phase-R, #live-data-table th.phase-R { color: #00d4ff; }
+    #tbl-data-table th.phase-S, #live-data-table th.phase-S { color: #ff6b35; }
+    #tbl-data-table th.phase-T, #live-data-table th.phase-T { color: #ffd700; }
+
+    /* Frozen timestamp column */
+    #tbl-data-table td:first-child, #live-data-table td:first-child,
+    #tbl-data-table th:first-child, #live-data-table th:first-child,
+    #tbl-data-table .th-group:first-child, #live-data-table .th-group:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 5;
+      background: #0f1b2c;
+      border-right: 2px solid rgba(0,212,255,0.2) !important;
+      min-width: 150px;
+      max-width: 150px;
+      width: 150px;
+    }
+    #tbl-data-table thead th:first-child, #live-data-table thead th:first-child,
+    #tbl-data-table thead .th-group:first-child, #live-data-table thead .th-group:first-child {
+      z-index: 25;
+      background: #0d1a2e;
+    }
+
+    /* Data cells */
+    #tbl-data-table td, #live-data-table td {
+      padding: 7px 10px;
       text-align: center;
-      border-bottom: 1px solid rgba(255,255,255,0.035);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      border-right: 1px solid rgba(255,255,255,0.03);
       font-family: var(--font-mono);
+      font-size: 11.5px;
       white-space: nowrap;
-      transition: background 0.2s;
+      transition: background 0.15s;
     }
-    #live-data-table td.ts-col {
+    #tbl-data-table td:last-child, #live-data-table td:last-child { border-right: none; }
+
+    /* Timestamp cell */
+    #tbl-data-table td.ts-col, #live-data-table td.ts-col {
       font-family: var(--font-body);
       font-size: 11px;
       color: var(--text-secondary);
       text-align: left;
-    }
-    #live-data-table tr:hover td { background: rgba(0,212,255,0.04); }
-    #live-data-table tr:last-child td { border-bottom: none; }
-    #live-data-table .latest-row td { background: rgba(0,212,255,0.06); }
-    #live-data-table .latest-row td:first-child {
-      border-left: 2px solid var(--cyan);
+      padding-left: 12px;
     }
 
-    /* Colored temp cells */
+    /* Zebra stripes */
+    #tbl-data-table tbody tr:nth-child(even) td,
+    #live-data-table tbody tr:nth-child(even) td {
+      background: rgba(255,255,255,0.012);
+    }
+    #tbl-data-table tbody tr:nth-child(even) td:first-child,
+    #live-data-table tbody tr:nth-child(even) td:first-child {
+      background: #101c2f;
+    }
+
+    /* Hover row */
+    #tbl-data-table tbody tr:hover td,
+    #live-data-table tbody tr:hover td {
+      background: rgba(0,212,255,0.06) !important;
+      cursor: default;
+    }
+    #tbl-data-table tbody tr:hover td:first-child,
+    #live-data-table tbody tr:hover td:first-child {
+      background: rgba(0,30,55,0.98) !important;
+    }
+
+    /* Latest row highlight */
+    #tbl-data-table .latest-row td, #live-data-table .latest-row td {
+      background: rgba(0,212,255,0.07) !important;
+    }
+    #tbl-data-table .latest-row td:first-child, #live-data-table .latest-row td:first-child {
+      border-left: 3px solid var(--cyan) !important;
+      background: rgba(0,25,45,0.95) !important;
+    }
+
+    /* Trafo separator */
+    #tbl-data-table td.trafo-sep-start, #live-data-table td.trafo-sep-start {
+      border-left: 2px solid rgba(0,212,255,0.18) !important;
+    }
+
+    /* Temp colored cells */
     .tc-normal   { color: #00ff88; }
     .tc-monitor  { color: #ffd700; }
     .tc-warning  { color: #ff6b35; font-weight: 600; }
     .tc-critical { color: #ff2244; font-weight: 700; animation: blink 1s infinite; }
-
-    /* Group header rows */
-    .th-group {
-      background: rgba(0,212,255,0.05) !important;
-      font-family: var(--font-body) !important;
-      font-size: 9px !important;
-      letter-spacing: 2px !important;
-      color: var(--cyan) !important;
-    }
 
     /* Export button */
     .export-btn {
@@ -1302,16 +1529,38 @@
        SECTION 4: PHASE BALANCE + HEATMAP
   =========================================================== -->
   <div class="section-row">
-    <!-- Phase Balance Analysis — full width -->
+    <!-- Phase Balance Analysis — compact layout -->
     <div class="card" style="margin-bottom:16px;">
       <div class="card-header">
-        <span class="card-title" style="font-size:15px;letter-spacing:1px;">Phase Balance Analysis</span>
-        <span class="card-badge" id="phase-trafo-label" style="font-size:11px;padding:4px 10px;">ALL TRAFO</span>
+        <span class="card-title">Phase Balance Analysis</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="card-badge" id="phase-trafo-label">ALL TRAFO</span>
+          <span id="phase-overall-status" class="pill normal" style="font-size:9px;padding:2px 8px;">NORMAL</span>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:center;">
-        <canvas id="phaseRadar" height="220"></canvas>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;" id="phase-imbalance">
-          <!-- Populated by JS -->
+      <div class="phase-balance-layout">
+        <!-- Left: Radar chart compact -->
+        <div class="phase-radar-wrap">
+          <div class="phase-radar-canvas-box">
+            <canvas id="phaseRadar"></canvas>
+          </div>
+          <div class="phase-radar-legend">
+            <span><span class="leg-dot" style="background:#00d4ff;display:inline-block;height:2px;width:14px;vertical-align:middle;border-radius:1px;margin-right:4px;"></span>Atas</span>
+            <span><span class="leg-dot" style="background:#ff6b35;display:inline-block;height:2px;width:14px;vertical-align:middle;border-radius:1px;margin-right:4px;"></span>Bawah</span>
+          </div>
+        </div>
+        <!-- Right: Trafo cards + delta panel -->
+        <div>
+          <div class="phase-imbalance-grid" id="phase-imbalance">
+            <!-- Populated by JS -->
+          </div>
+          <!-- Delta panel: R-S, S-T, R-T per trafo -->
+          <div style="margin-top:12px;">
+            <div style="font-family:var(--font-display);font-size:9px;letter-spacing:2px;color:var(--text-muted);margin-bottom:8px;text-transform:uppercase;">Delta Antar Fasa (Atas) — Latest Reading</div>
+            <div id="phase-delta-panel" class="phase-delta-panel">
+              <!-- Populated by JS -->
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1516,7 +1765,6 @@
         </div>
         <input type="text" id="tbl-search" placeholder="🔍 Cari timestamp..." oninput="filterTblTable()" />
         <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);" id="tbl-row-count">-- baris</span>
           <button class="export-btn" onclick="exportCSVTable()">⬇ Export CSV</button>
         </div>
       </div>
@@ -1524,14 +1772,21 @@
       <!-- Summary stats row -->
       <div class="data-stats-row" id="tbl-stats-row"></div>
 
-      <!-- Data table - NO PAGINATION, show all rows -->
-      <div class="card" style="padding:0;overflow:hidden;">
-        <div class="data-table-wrap" style="max-height:70vh;overflow-y:auto;">
-          <table id="tbl-data-table">
-            <thead id="tbl-thead" style="position:sticky;top:0;z-index:2;"></thead>
-            <tbody id="tbl-tbody"></tbody>
-          </table>
-        </div>
+      <!-- Data table - virtual scroll, no pagination, show all rows -->
+      <div class="tbl-header-bar">
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--cyan);" id="tbl-row-count">-- baris</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">|</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);" id="tbl-vscroll-info">Tampil semua · scroll untuk navigasi</span>
+        <div style="flex:1;"></div>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-right:4px;">← scroll kanan untuk kolom lainnya →</span>
+      </div>
+      <div class="data-table-wrap" id="tbl-scroll-wrap">
+        <table id="tbl-data-table">
+          <thead id="tbl-thead" style="position:sticky;top:0;z-index:20;"></thead>
+          <tbody id="tbl-tbody-spacer-top"><tr id="vscroll-top"><td style="padding:0;height:0;border:none;"></td></tr></tbody>
+          <tbody id="tbl-tbody"></tbody>
+          <tbody id="tbl-tbody-spacer-bottom"><tr id="vscroll-bottom"><td style="padding:0;height:0;border:none;"></td></tr></tbody>
+        </table>
       </div>
 
       <!-- Last update info -->
@@ -2286,7 +2541,7 @@ function initCharts() {
     }
   });
 
-  // Phase Radar chart
+  // Phase Radar chart — compact
   const radarCtx = document.getElementById('phaseRadar').getContext('2d');
   APP.charts.radar = new Chart(radarCtx, {
     type: 'radar',
@@ -2296,20 +2551,54 @@ function initCharts() {
         {
           label: 'Atas',
           data: Array(9).fill(0),
-          backgroundColor: 'rgba(0,212,255,0.12)',
+          backgroundColor: 'rgba(0,212,255,0.10)',
           borderColor: '#00d4ff', borderWidth: 1.5,
           pointBackgroundColor: '#00d4ff', pointRadius: 3,
+          pointHoverRadius: 4,
         },
         {
           label: 'Bawah',
           data: Array(9).fill(0),
-          backgroundColor: 'rgba(255,107,53,0.08)',
+          backgroundColor: 'rgba(255,107,53,0.07)',
           borderColor: '#ff6b35', borderWidth: 1.5,
           pointBackgroundColor: '#ff6b35', pointRadius: 3,
+          pointHoverRadius: 4,
         }
       ]
     },
-    options: ChartDefs.radarDefaults
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600 },
+      layout: { padding: { top: 4, bottom: 4, left: 4, right: 4 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#172035', borderColor: 'rgba(0,212,255,0.2)', borderWidth: 1,
+          titleColor: '#00d4ff', bodyColor: '#e8f4f8',
+          titleFont: { family: "'Plus Jakarta Sans'", size: 10 },
+          bodyFont: { family: "'DM Mono'", size: 11 },
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.r.toFixed(1)}°C` }
+        }
+      },
+      scales: {
+        r: {
+          ticks: {
+            color: '#3d5a6e',
+            font: { family: "'DM Mono'", size: 8 },
+            backdropColor: 'transparent',
+            maxTicksLimit: 4,
+          },
+          grid: { color: 'rgba(255,255,255,0.06)' },
+          angleLines: { color: 'rgba(255,255,255,0.06)' },
+          pointLabels: {
+            color: '#7a9bb5',
+            font: { family: "'Plus Jakarta Sans'", size: 9, weight: '600' },
+          },
+          min: 20,
+        }
+      }
+    }
   });
 
   // Aging radial
@@ -2789,41 +3078,81 @@ function renderPhaseRadar(data) {
   APP.charts.radar.data.datasets[1].data = bawahData;
   APP.charts.radar.update();
 
-  // Phase imbalance panel — new 3-col card layout
+  // Phase imbalance cards — using new CSS classes
   let html = '';
   trafos.forEach(t => {
     const lt = Analytics.latest(data, t);
     if (!lt) return;
-    const dp = Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas);
-    const maxT = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
-    const dpColor = dp>15?'var(--red)':dp>8?'var(--orange)':'var(--green)';
-    const tColor  = Analytics.severity(maxT)==='critical'?'var(--red)':Analytics.severity(maxT)==='warning'?'var(--orange)':Analytics.severity(maxT)==='monitor'?'var(--yellow)':'var(--green)';
+    const dp    = Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas);
+    const maxT  = Math.max(lt.r_atas, lt.s_atas, lt.t_atas);
+    const dpColor  = dp > 15 ? 'var(--red)' : dp > 8 ? 'var(--orange)' : 'var(--green)';
+    const tColor   = Analytics.tempColor(maxT);
+    const sevLabel = Analytics.severity(maxT);
     html += `
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:14px 16px;">
-        <div style="font-family:var(--font-display);font-size:11px;letter-spacing:2px;color:var(--text-muted);margin-bottom:10px;">TRAFO ${t}</div>
-        <div style="display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:12px;color:var(--text-secondary);">ΔPhase Imbalance</span>
-            <span style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:${dpColor};">${dp.toFixed(1)}°C</span>
+      <div class="phase-trafo-card">
+        <div class="ptc-title">Trafo ${t}</div>
+        <div class="ptc-metric">
+          <span class="ptc-label">Δ Phase Imbalance</span>
+          <span class="ptc-val" style="color:${dpColor};">${dp.toFixed(1)}°C</span>
+        </div>
+        <div class="ptc-bar"><div class="ptc-bar-fill" style="width:${Math.min(100,dp/20*100)}%;background:${dpColor};"></div></div>
+        <div class="ptc-metric">
+          <span class="ptc-label">Max Temp</span>
+          <span class="ptc-val" style="color:${tColor};">${maxT.toFixed(1)}°C</span>
+        </div>
+        <div class="ptc-bar"><div class="ptc-bar-fill" style="width:${Math.min(100,maxT/90*100)}%;background:${tColor};"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
+          <div style="display:flex;gap:6px;">
+            <span style="font-family:var(--font-mono);font-size:10px;color:#00d4ff;">R:${lt.r_atas.toFixed(1)}</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:#ff6b35;">S:${lt.s_atas.toFixed(1)}</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:#ffd700;">T:${lt.t_atas.toFixed(1)}</span>
           </div>
-          <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
-            <div style="width:${Math.min(100,dp/20*100)}%;height:100%;background:${dpColor};border-radius:2px;transition:width 0.5s;"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-            <span style="font-size:12px;color:var(--text-secondary);">Max Temp</span>
-            <span style="font-family:var(--font-mono);font-size:18px;font-weight:700;color:${tColor};">${maxT.toFixed(1)}°C</span>
-          </div>
-          <div style="height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
-            <div style="width:${Math.min(100,maxT/90*100)}%;height:100%;background:${tColor};border-radius:2px;transition:width 0.5s;"></div>
-          </div>
-          <div style="text-align:right;margin-top:4px;">
-            <span class="pill ${Analytics.severity(maxT)}" style="font-size:10px;">${Analytics.severity(maxT).toUpperCase()}</span>
-          </div>
+          <span class="pill ${sevLabel}" style="font-size:9px;padding:1px 7px;">${sevLabel.toUpperCase()}</span>
         </div>
       </div>
     `;
   });
   document.getElementById('phase-imbalance').innerHTML = html;
+
+  // Delta panel: R-S, S-T, R-T for each trafo aggregated
+  // Show worst-case delta across all 3 trafos per pair
+  let deltaHtml = '';
+  const pairs = [
+    { label: 'R — S', key: 'rs', fn: lt => Math.abs(lt.r_atas - lt.s_atas) },
+    { label: 'S — T', key: 'st', fn: lt => Math.abs(lt.s_atas - lt.t_atas) },
+    { label: 'R — T', key: 'rt', fn: lt => Math.abs(lt.r_atas - lt.t_atas) },
+  ];
+  pairs.forEach(pair => {
+    let maxDelta = 0;
+    trafos.forEach(t => {
+      const lt = Analytics.latest(data, t);
+      if (!lt) return;
+      maxDelta = Math.max(maxDelta, pair.fn(lt));
+    });
+    const status  = maxDelta > 10 ? 'WARNING' : 'NORMAL';
+    const cls     = maxDelta > 10 ? 'pdc-warning' : 'pdc-normal';
+    const valColor = maxDelta > 10 ? 'var(--orange)' : 'var(--green)';
+    deltaHtml += `
+      <div class="phase-delta-chip ${cls}">
+        <div class="pdc-pair" style="color:var(--cyan);">${pair.label}</div>
+        <div class="pdc-val" style="color:${valColor};">${maxDelta.toFixed(1)}°</div>
+        <div class="pdc-status">${status}</div>
+      </div>
+    `;
+  });
+  const dpEl = document.getElementById('phase-delta-panel');
+  if (dpEl) dpEl.innerHTML = deltaHtml;
+
+  // Overall status badge
+  const allLts = trafos.map(t => Analytics.latest(data, t)).filter(Boolean);
+  const allMaxDP = allLts.map(lt => Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas));
+  const worstDP = Math.max(...allMaxDP, 0);
+  const overallSev = worstDP > 15 ? 'critical' : worstDP > 8 ? 'warning' : 'normal';
+  const statusEl = document.getElementById('phase-overall-status');
+  if (statusEl) {
+    statusEl.className = `pill ${overallSev}`;
+    statusEl.textContent = overallSev.toUpperCase();
+  }
 }
 
 /* ---- Thermal Heatmap ---- */
@@ -3507,13 +3836,13 @@ const TableView = {
 
     const groupRow = groups.map(g =>
       g.label
-        ? `<th colspan="${g.span}" class="th-group" style="text-align:center;border-left:2px solid rgba(0,212,255,0.15);position:sticky;top:0;">${g.label}</th>`
-        : `<th class="th-group" style="position:sticky;top:0;"></th>`
+        ? `<th colspan="${g.span}" class="th-group">${g.label}</th>`
+        : `<th class="th-group"></th>`
     ).join('');
 
-    const colRow = cols.map(c => {
-      const bl = c.group ? 'border-left:2px solid rgba(0,212,255,0.15);' : '';
-      return `<th class="${c.phaseClass}" style="${bl}position:sticky;top:0;">${c.label}</th>`;
+    const colRow = cols.map((c, i) => {
+      const borderCls = c.group ? 'trafo-sep-start' : '';
+      return `<th class="${c.phaseClass}${borderCls?' '+borderCls:''}">${c.label}</th>`;
     }).join('');
 
     document.getElementById('tbl-thead').innerHTML = `<tr>${groupRow}</tr><tr>${colRow}</tr>`;
@@ -3534,28 +3863,74 @@ const TableView = {
     });
 
     const total = filtered.length;
-    document.getElementById('tbl-row-count').textContent = `${total} baris`;
-    document.getElementById('tbl-period-info').textContent = `${total} baris dimuat`;
+    const rcEl = document.getElementById('tbl-row-count');
+    if (rcEl) rcEl.textContent = `${total.toLocaleString('id-ID')} baris`;
+    document.getElementById('tbl-period-info').textContent = `${total.toLocaleString('id-ID')} baris dimuat`;
 
     if (!total) {
       document.getElementById('tbl-tbody').innerHTML =
         `<tr><td colspan="${cols.length}" style="text-align:center;padding:30px;color:var(--text-muted);">Tidak ada data untuk periode ini</td></tr>`;
+      document.getElementById('vscroll-top').firstChild.style.height = '0px';
+      document.getElementById('vscroll-bottom').firstChild.style.height = '0px';
       return;
     }
 
-    // Render ALL rows (no pagination)
-    document.getElementById('tbl-tbody').innerHTML = filtered.map((row, idx) => {
+    // Virtual scroll setup
+    const ROW_H = 34;          // px per row (approx)
+    const BUFFER = 30;         // extra rows above/below visible area
+    const scrollWrap = document.getElementById('tbl-scroll-wrap');
+
+    // Store filtered data on object for scroll handler
+    this._filteredRows = filtered;
+    this._cols = cols;
+    this._rowH = ROW_H;
+
+    const renderWindow = () => {
+      if (!this._filteredRows) return;
+      const rows   = this._filteredRows;
+      const cols   = this._cols;
+      const n      = rows.length;
+      const wrap   = document.getElementById('tbl-scroll-wrap');
+      if (!wrap) return;
+      const scrollTop = wrap.scrollTop;
+      const viewH     = wrap.clientHeight || 600;
+
+      // For small datasets, render all
+      if (n <= 500) {
+        document.getElementById('vscroll-top').firstChild.style.height = '0px';
+        document.getElementById('vscroll-bottom').firstChild.style.height = '0px';
+        document.getElementById('tbl-tbody').innerHTML = rows.map((row, idx) => buildRow(row, idx, cols)).join('');
+        return;
+      }
+
+      const startIdx = Math.max(0, Math.floor(scrollTop / ROW_H) - BUFFER);
+      const endIdx   = Math.min(n, startIdx + Math.ceil(viewH / ROW_H) + BUFFER * 2);
+
+      document.getElementById('vscroll-top').firstChild.style.height = `${startIdx * ROW_H}px`;
+      document.getElementById('vscroll-bottom').firstChild.style.height = `${(n - endIdx) * ROW_H}px`;
+      document.getElementById('tbl-tbody').innerHTML = rows.slice(startIdx, endIdx).map((row, i) => buildRow(row, startIdx + i, cols)).join('');
+    };
+
+    const buildRow = (row, idx, cols) => {
       const ts    = new Date(row.timestamp);
       const tsStr = ts.toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      const cells = cols.map(c => {
+      const cells = cols.map((c, ci) => {
         if (c.key === 'timestamp') return `<td class="ts-col">${tsStr}</td>`;
         const v   = row[c.key];
         const cls = this.tempClass(v);
-        const bl  = c.group ? 'border-left:2px solid rgba(0,212,255,0.1);' : '';
-        return `<td class="${cls}" style="${bl}">${(v&&v>0) ? v.toFixed(1)+'°' : '—'}</td>`;
+        const bl  = c.group ? 'trafo-sep-start' : '';
+        return `<td class="${cls}${bl?' '+bl:''}">${(v&&v>0) ? v.toFixed(1)+'°' : '—'}</td>`;
       }).join('');
-      return `<tr class="${idx===0?'latest-row':''}">${cells}</tr>`;
-    }).join('');
+      return `<tr class="${idx===0?'latest-row':''}" style="height:${ROW_H}px;">${cells}</tr>`;
+    };
+
+    // Attach/update scroll handler
+    if (!scrollWrap._vsHandler) {
+      scrollWrap._vsHandler = () => renderWindow();
+      scrollWrap.addEventListener('scroll', scrollWrap._vsHandler, { passive: true });
+    }
+
+    renderWindow();
 
     document.getElementById('tbl-last-update').textContent = `Last fetch: ${new Date().toLocaleTimeString('id-ID')}`;
 
@@ -3568,12 +3943,12 @@ const TableView = {
       const critCount = allVals.filter(v => v >= 75).length;
       const warnCount = allVals.filter(v => v >= 65 && v < 75).length;
       document.getElementById('tbl-stats-row').innerHTML = [
-        { lbl: 'Total Baris',    val: total,                  color: 'var(--cyan)'   },
-        { lbl: 'Suhu Max',       val: maxV.toFixed(1)+'°C',   color: Analytics.tempColor(maxV) },
-        { lbl: 'Suhu Min',       val: minV.toFixed(1)+'°C',   color: 'var(--green)'  },
-        { lbl: 'Rata-rata',      val: avgV+'°C',              color: Analytics.tempColor(avgV) },
-        { lbl: 'Warning Count',  val: warnCount,              color: 'var(--orange)' },
-        { lbl: 'Critical Count', val: critCount,              color: critCount>0?'var(--red)':'var(--text-muted)' },
+        { lbl: 'Total Baris',    val: total.toLocaleString('id-ID'),      color: 'var(--cyan)'   },
+        { lbl: 'Suhu Max',       val: maxV.toFixed(1)+'°C',               color: Analytics.tempColor(maxV) },
+        { lbl: 'Suhu Min',       val: minV.toFixed(1)+'°C',               color: 'var(--green)'  },
+        { lbl: 'Rata-rata',      val: avgV+'°C',                          color: Analytics.tempColor(avgV) },
+        { lbl: 'Warning Count',  val: warnCount.toLocaleString('id-ID'),  color: 'var(--orange)' },
+        { lbl: 'Critical Count', val: critCount.toLocaleString('id-ID'),  color: critCount>0?'var(--red)':'var(--text-muted)' },
       ].map(s => `<div class="data-stat-box"><div class="dsb-val" style="color:${s.color};">${s.val}</div><div class="dsb-lbl">${s.lbl}</div></div>`).join('');
     }
   },
@@ -3583,36 +3958,44 @@ function renderTableView() {
   if (!APP.data || !APP.data.length) return;
   TableView.renderHeader();
   TableView.render(APP.data);
+  // Reset scroll to top on re-render from filters
+  const wrap = document.getElementById('tbl-scroll-wrap');
+  if (wrap && wrap._vsResetPending) { wrap.scrollTop = 0; wrap._vsResetPending = false; }
 }
 
 function setTablePeriod(period, btn) {
   TableView.timePeriod = period;
   document.querySelectorAll('[id^="tblPer-"]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const wrap = document.getElementById('tbl-scroll-wrap'); if (wrap) { wrap._vsResetPending = true; }
   renderTableView();
 }
 function setTblTrafo(t, btn) {
   TableView.trafoFilter = t;
   btn.parentElement.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const wrap = document.getElementById('tbl-scroll-wrap'); if (wrap) { wrap.scrollTop = 0; }
   renderTableView();
 }
 function setTblPhase(phase, btn) {
   TableView.phaseFilter = phase;
   document.querySelectorAll('[id^="tblPhase-"]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const wrap = document.getElementById('tbl-scroll-wrap'); if (wrap) { wrap.scrollTop = 0; }
   renderTableView();
 }
 function setTblPosisi(posisi, btn) {
   TableView.posisiFilter = posisi;
   document.querySelectorAll('[id^="tblPos-"]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const wrap = document.getElementById('tbl-scroll-wrap'); if (wrap) { wrap.scrollTop = 0; }
   renderTableView();
 }
 function setTblSev(sev, btn) {
   TableView.severityFilter = sev;
   document.querySelectorAll('[id^="tblSev-"]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const wrap = document.getElementById('tbl-scroll-wrap'); if (wrap) { wrap.scrollTop = 0; }
   renderTableView();
 }
 function filterTblTable() {
