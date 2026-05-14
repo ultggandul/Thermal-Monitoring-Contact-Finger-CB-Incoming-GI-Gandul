@@ -1592,38 +1592,7 @@
         </div>
       </div>
 
-    </div>
-  </div>
-
-  <!-- ===========================================================
-       SECTION 5: HEALTH INDEX TABLE + MAINTENANCE
-  =========================================================== -->
-  <div class="section-row">
-    <div class="grid-2">
-
-      <!-- Equipment Health Index -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">Equipment Health Index Ranking</span>
-          <span class="card-badge">SORTED: WORST FIRST</span>
-        </div>
-        <table class="hi-table" id="hi-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Equipment</th>
-              <th>Health Index</th>
-              <th>Aging Factor</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="hi-tbody">
-            <!-- Populated by JS -->
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Predictive Maintenance -->
+      <!-- Predictive Maintenance — dipindah ke sini agar sejajar heatmap -->
       <div class="card">
         <div class="card-header">
           <span class="card-title">Predictive Maintenance Recommendations</span>
@@ -1634,6 +1603,32 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       SECTION 5: HEALTH INDEX TABLE
+  =========================================================== -->
+  <div class="section-row">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Equipment Health Index Ranking</span>
+        <span class="card-badge">SORTED: WORST FIRST</span>
+      </div>
+      <table class="hi-table" id="hi-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Equipment</th>
+            <th>Health Index</th>
+            <th>Aging Factor</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="hi-tbody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
     </div>
   </div>
 
