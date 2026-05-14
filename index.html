@@ -2303,6 +2303,7 @@ const LiveChart = {
           pointHoverBackgroundColor: s.color,
           pointHoverBorderColor: '#fff',
           pointHoverBorderWidth: 1.5,
+          pointHitRadius: 20,
           hidden: !LiveChart.visibility[s.key],
         }))
       },
@@ -2310,6 +2311,17 @@ const LiveChart = {
         responsive: true,
         animation: { duration: 300, easing: 'easeOutCubic' },
         interaction: { mode: 'index', intersect: false },
+        elements: {
+          point: {
+            radius: 0,          // titik tidak terlihat
+            hoverRadius: 5,     // muncul bulat saat hover
+            hitRadius: 20,      // area deteksi hover lebar
+          },
+          line: {
+            tension: 0.4,
+            cubicInterpolationMode: 'monotone',
+          }
+        },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -2454,7 +2466,8 @@ const LiveChart = {
     this.SERIES_CFG.forEach((s, i) => {
       this.chart.data.datasets[i].data        = seriesData[s.key];
       this.chart.data.datasets[i].hidden      = !isVisible(s.key);
-      this.chart.data.datasets[i].pointRadius = displayData.length > 150 ? 0 : 2.5;
+      this.chart.data.datasets[i].pointRadius      = 0;   // selalu sembunyikan titik
+      this.chart.data.datasets[i].pointHoverRadius = 5;   // muncul hanya saat hover
       // Thicker lines for hourly aggregated view
       this.chart.data.datasets[i].borderWidth = useHourly ? s.width + 0.5 : s.width;
     });
