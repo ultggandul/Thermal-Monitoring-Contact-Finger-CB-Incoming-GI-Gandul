@@ -16,6 +16,10 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Chart.js Annotations plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <!-- Hammer.js (touch/mouse gestures for zoom plugin) -->
+  <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+  <!-- Chart.js Zoom plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
 
   <style>
     /* ============================================================
@@ -1682,6 +1686,22 @@
           <!-- Populated by JS -->
         </div>
       </div>
+      <!-- Time Period + Zoom Controls -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding:8px 12px;background:rgba(0,212,255,0.03);border:1px solid rgba(0,212,255,0.08);border-radius:6px;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">PERIODE:</span>
+          <button class="ctrl-btn" id="lcPer-1h"   onclick="setLiveTimePeriod('1h',this)">1H</button>
+          <button class="ctrl-btn" id="lcPer-6h"   onclick="setLiveTimePeriod('6h',this)">6H</button>
+          <button class="ctrl-btn" id="lcPer-12h"  onclick="setLiveTimePeriod('12h',this)">12H</button>
+          <button class="ctrl-btn" id="lcPer-24h"  onclick="setLiveTimePeriod('24h',this)">24H</button>
+          <button class="ctrl-btn" id="lcPer-7d"   onclick="setLiveTimePeriod('7d',this)">7D</button>
+          <button class="ctrl-btn active" id="lcPer-all"  onclick="setLiveTimePeriod('all',this)">FULL DATA</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">Zoom: scroll · Pan: drag</span>
+          <button class="ctrl-btn" onclick="resetLiveZoom()" title="Reset Zoom" style="padding:3px 10px;font-size:10px;">⟳ Reset</button>
+        </div>
+      </div>
       <!-- Chart -->
       <div style="position:relative;">
         <canvas id="liveChart" height="160"></canvas>
@@ -2173,8 +2193,9 @@ const Analytics = {
 ============================================================ */
 const LiveChart = {
   trafo: 2,
-  phase: 'all',   // 'all'|'R'|'S'|'T'
-  posisi: 'all',  // 'all'|'atas'|'bawah'
+  phase: 'all',      // 'all'|'R'|'S'|'T'
+  posisi: 'all',     // 'all'|'atas'|'bawah'
+  timePeriod: 'all', // '1h'|'6h'|'12h'|'24h'|'7d'|'all'
   visibility: {
     'R Atas': true, 'R Bawah': true,
     'S Atas': true, 'S Bawah': true,
@@ -2183,8 +2204,9 @@ const LiveChart = {
   chart: null,
   tickTimer: null,
   liveBuffer: [],
-  MAX_LIVE_POINTS: 500,
+  MAX_LIVE_POINTS: 600,
 
+  /* ── Lossless Largest-Triangle-Three-Buckets downsample ── */
   downsample(data, maxPts) {
     if (data.length <= maxPts) return data;
     const out = [data[0]];
@@ -2202,6 +2224,34 @@ const LiveChart = {
     }
     out.push(data[data.length-1]);
     return out;
+  },
+
+  /* ── Filter raw data by selected time period ── */
+  filterByPeriod(data) {
+    if (this.timePeriod === 'all') return data;
+    const ms = { '1h':3600e3, '6h':6*3600e3, '12h':12*3600e3, '24h':24*3600e3, '7d':7*86400e3 };
+    const cutoff = Date.now() - (ms[this.timePeriod] || 0);
+    return data.filter(d => d.timestamp >= cutoff);
+  },
+
+  /* ── Hourly average aggregation for smoother long-range view ── */
+  aggregateHourly(data) {
+    if (data.length < 60) return data; // not worth aggregating small sets
+    const buckets = new Map();
+    data.forEach(d => {
+      const h = Math.floor(d.timestamp / 3600000) * 3600000;
+      if (!buckets.has(h)) buckets.set(h, []);
+      buckets.get(h).push(d);
+    });
+    return [...buckets.entries()].sort((a,b)=>a[0]-b[0]).map(([h, rows]) => {
+      const avg = {};
+      const keys = Object.keys(rows[0]).filter(k=>k!=='timestamp');
+      keys.forEach(k => {
+        const vals = rows.map(r=>r[k]).filter(v=>typeof v==='number'&&v>0);
+        avg[k] = vals.length ? +(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2) : 0;
+      });
+      return { timestamp: h + 1800000, ...avg }; // mid-hour label
+    });
   },
 
   SERIES_CFG: [
@@ -2223,26 +2273,32 @@ const LiveChart = {
           label: s.key,
           data: [],
           borderColor: s.color,
-          backgroundColor: 'transparent',
+          backgroundColor: s.color.replace(')', ',0.06)').replace('rgb', 'rgba').replace('#', '').length > 7
+            ? 'transparent'
+            : `${s.color}10`,
+          fill: false,
           borderWidth: s.width,
           borderDash: s.dash || [],
-          tension: 0.5,
-            cubicInterpolationMode: 'monotone',
+          tension: 0.4,
+          cubicInterpolationMode: 'monotone',
+          spanGaps: true,
           pointRadius: 0,
           pointHoverRadius: 5,
           pointHoverBackgroundColor: s.color,
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 1.5,
           hidden: !LiveChart.visibility[s.key],
         }))
       },
       options: {
         responsive: true,
-        animation: { duration: 400, easing: 'easeInOutSine' },
+        animation: { duration: 300, easing: 'easeOutCubic' },
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { display: false }, // custom buttons used instead
+          legend: { display: false },
           tooltip: {
-            backgroundColor: '#172035',
-            borderColor: 'rgba(0,212,255,0.2)',
+            backgroundColor: '#172035ee',
+            borderColor: 'rgba(0,212,255,0.25)',
             borderWidth: 1,
             titleColor: '#00d4ff',
             bodyColor: '#e8f4f8',
@@ -2274,15 +2330,29 @@ const LiveChart = {
               z_fill_warn: { type:'box', yMin:65, yMax:75, backgroundColor:'rgba(255,107,53,0.02)',  borderWidth:0 },
               z_fill_crit: { type:'box', yMin:75, yMax:100,backgroundColor:'rgba(255,34,68,0.025)',  borderWidth:0 },
             }
-          }
+          },
+          zoom: {
+            pan: {
+              enabled: true,
+              mode: 'x',
+              threshold: 5,
+            },
+            zoom: {
+              wheel: { enabled: true, speed: 0.08 },
+              pinch: { enabled: true },
+              mode: 'x',
+            },
+            limits: { x: { minRange: 5 } },
+          },
         },
         scales: {
           x: {
             ticks: {
               color: '#3d5a6e',
               font: { family: "'DM Mono'", size: 9 },
-              maxTicksLimit: 10,
+              maxTicksLimit: 12,
               maxRotation: 0,
+              autoSkip: true,
             },
             grid: { color: 'rgba(255,255,255,0.03)' },
           },
@@ -2299,9 +2369,13 @@ const LiveChart = {
         }
       }
     });
+
+    // Set default active period button
+    const defBtn = document.getElementById('lcPer-all');
+    if (defBtn) defBtn.classList.add('active');
   },
 
-  /** Push data into chart with downsample + phase/posisi filter */
+  /** Push data into chart — with period filter + optional hourly aggregation */
   update(data, trafo) {
     if (!this.chart) return;
     if (!data || !data.length) return;
@@ -2309,43 +2383,72 @@ const LiveChart = {
     const ph  = this.phase;
     const pos = this.posisi;
 
-    const sampled = this.downsample(data, this.MAX_LIVE_POINTS);
+    // 1. Filter by selected time period
+    let periodData = this.filterByPeriod(data);
+    if (!periodData.length) periodData = data.slice(-20); // fallback
 
-    const labels = sampled.map(d => {
-      const dt = new Date(d.timestamp);
-      return dt.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
-    });
+    // 2. For long periods (7D / all with >500pts), aggregate hourly for smooth line
+    let displayData;
+    const useHourly = (this.timePeriod === '7d' || this.timePeriod === 'all') && periodData.length > 300;
+    if (useHourly) {
+      displayData = this.aggregateHourly(periodData);
+    } else {
+      // LTTB downsample for medium/short periods
+      displayData = this.downsample(periodData, Math.min(this.MAX_LIVE_POINTS, periodData.length));
+    }
+
+    // 3. Format labels based on period
+    const fmt = (ts) => {
+      const dt = new Date(ts);
+      if (this.timePeriod === '1h') {
+        return dt.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      } else if (this.timePeriod === '6h' || this.timePeriod === '12h' || this.timePeriod === '24h') {
+        return dt.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+      } else {
+        return dt.toLocaleDateString('id-ID', {day:'2-digit',month:'short'}) + ' ' +
+               dt.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+      }
+    };
+
+    const labels = displayData.map(d => fmt(d.timestamp));
 
     const seriesData = {
-      'R Atas':  sampled.map(d => d[`${t}_r_atas`]),
-      'R Bawah': sampled.map(d => d[`${t}_r_bawah`]),
-      'S Atas':  sampled.map(d => d[`${t}_s_atas`]),
-      'S Bawah': sampled.map(d => d[`${t}_s_bawah`]),
-      'T Atas':  sampled.map(d => d[`${t}_t_atas`]),
-      'T Bawah': sampled.map(d => d[`${t}_t_bawah`]),
+      'R Atas':  displayData.map(d => d[`${t}_r_atas`]  || null),
+      'R Bawah': displayData.map(d => d[`${t}_r_bawah`] || null),
+      'S Atas':  displayData.map(d => d[`${t}_s_atas`]  || null),
+      'S Bawah': displayData.map(d => d[`${t}_s_bawah`] || null),
+      'T Atas':  displayData.map(d => d[`${t}_t_atas`]  || null),
+      'T Bawah': displayData.map(d => d[`${t}_t_bawah`] || null),
     };
 
     const isVisible = (key) => {
       const [phase, dir] = key.split(' ');
-      if (ph  !== 'all' && ph  !== phase)                  return false;
-      if (pos !== 'all' && pos !== dir.toLowerCase())      return false;
+      if (ph  !== 'all' && ph  !== phase)             return false;
+      if (pos !== 'all' && pos !== dir.toLowerCase()) return false;
       return this.visibility[key];
     };
 
-    if (sampled.length > 300) this.chart.options.animation = false;
-    else this.chart.options.animation = {duration: 400};
+    // Disable animation for large datasets to prevent lag
+    this.chart.options.animation = displayData.length > 300 ? false : { duration: 300, easing: 'easeOutCubic' };
 
     this.chart.data.labels = labels;
     this.SERIES_CFG.forEach((s, i) => {
       this.chart.data.datasets[i].data        = seriesData[s.key];
       this.chart.data.datasets[i].hidden      = !isVisible(s.key);
-      this.chart.data.datasets[i].pointRadius = sampled.length > 200 ? 0 : 3;
+      this.chart.data.datasets[i].pointRadius = displayData.length > 150 ? 0 : 2.5;
+      // Thicker lines for hourly aggregated view
+      this.chart.data.datasets[i].borderWidth = useHourly ? s.width + 0.5 : s.width;
     });
     this.chart.update('active');
 
-    this.updateStatsPills(sampled, trafo);
+    this.updateStatsPills(displayData, trafo);
+
+    const inPeriod = periodData.length;
+    const shown    = displayData.length;
+    const modeLabel = useHourly ? 'hourly avg' : (inPeriod !== shown ? `sampled: ${shown}` : `${shown} pts`);
     document.getElementById('live-window').textContent =
-      `Window: ${data.length} pts${data.length !== sampled.length ? ' (sampled: '+sampled.length+')' : ''}`;
+      `Periode: ${inPeriod} pts · ${modeLabel}`;
+
     const lastTs = new Date(data[data.length-1].timestamp);
     document.getElementById('live-ts').textContent =
       `${lastTs.toLocaleDateString('id-ID')} ${lastTs.toLocaleTimeString('id-ID')}`;
@@ -2429,6 +2532,19 @@ function setLCPosisi(posisi, btn) {
   document.querySelectorAll('[id^="lcPos-"]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   if (LiveChart.chart && APP.data.length) LiveChart.update(APP.data, LiveChart.trafo);
+}
+
+function setLiveTimePeriod(period, btn) {
+  LiveChart.timePeriod = period;
+  document.querySelectorAll('[id^="lcPer-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Reset zoom so user sees the full selected period
+  if (LiveChart.chart && LiveChart.chart.resetZoom) LiveChart.chart.resetZoom();
+  if (LiveChart.chart && APP.data.length) LiveChart.update(APP.data, LiveChart.trafo);
+}
+
+function resetLiveZoom() {
+  if (LiveChart.chart && LiveChart.chart.resetZoom) LiveChart.chart.resetZoom();
 }
 
 /* ============================================================
