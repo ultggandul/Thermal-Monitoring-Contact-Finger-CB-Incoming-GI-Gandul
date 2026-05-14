@@ -20,6 +20,10 @@
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
   <!-- Chart.js Zoom plugin -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <script>
+    // Ensure zoom plugin is registered with Chart.js
+    if (window.ChartZoom) { try { Chart.register(window.ChartZoom); } catch(e) {} }
+  </script>
 
   <style>
     /* ============================================================
@@ -903,6 +907,8 @@
        UTILITY
     ============================================================ */
     canvas { max-width: 100%; }
+    #liveChart { cursor: grab; }
+    #liveChart:active { cursor: grabbing; }
     .text-cyan   { color: var(--cyan); }
     .text-green  { color: var(--green); }
     .text-yellow { color: var(--yellow); }
@@ -1082,9 +1088,9 @@
       text-overflow: ellipsis;
     }
     #tbl-data-table th:last-child, #live-data-table th:last-child { border-right: none; }
-    #tbl-data-table th.phase-R, #live-data-table th.phase-R { color: #00d4ff; }
-    #tbl-data-table th.phase-S, #live-data-table th.phase-S { color: #ff6b35; }
-    #tbl-data-table th.phase-T, #live-data-table th.phase-T { color: #ffd700; }
+    #tbl-data-table th.phase-R, #live-data-table th.phase-R { color: #ff3355; }
+    #tbl-data-table th.phase-S, #live-data-table th.phase-S { color: #ffd700; }
+    #tbl-data-table th.phase-T, #live-data-table th.phase-T { color: #4499ff; }
 
     /* Frozen timestamp column */
     #tbl-data-table td:first-child, #live-data-table td:first-child,
@@ -1674,12 +1680,12 @@
           <button class="ctrl-btn" id="lcPos-bawah" onclick="setLCPosisi('bawah',this)">Bawah↓</button>
           <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);margin:0 4px;"></div>
           <span style="font-size:11px;color:var(--text-muted);">Channel:</span>
-          <button class="ctrl-btn active" id="liveBtn-R-Atas" onclick="toggleLiveSeries('R Atas',this)">R↑</button>
-          <button class="ctrl-btn active" id="liveBtn-R-Bawah" onclick="toggleLiveSeries('R Bawah',this)">R↓</button>
-          <button class="ctrl-btn active" id="liveBtn-S-Atas" onclick="toggleLiveSeries('S Atas',this)">S↑</button>
-          <button class="ctrl-btn active" id="liveBtn-S-Bawah" onclick="toggleLiveSeries('S Bawah',this)">S↓</button>
-          <button class="ctrl-btn active" id="liveBtn-T-Atas" onclick="toggleLiveSeries('T Atas',this)">T↑</button>
-          <button class="ctrl-btn active" id="liveBtn-T-Bawah" onclick="toggleLiveSeries('T Bawah',this)">T↓</button>
+          <button class="ctrl-btn active" id="liveBtn-R-Atas"  onclick="toggleLiveSeries('R Atas',this)"  style="color:#ff3355;border-color:rgba(255,51,85,0.4);">R↑</button>
+          <button class="ctrl-btn active" id="liveBtn-R-Bawah" onclick="toggleLiveSeries('R Bawah',this)" style="color:#cc1133;border-color:rgba(204,17,51,0.4);">R↓</button>
+          <button class="ctrl-btn active" id="liveBtn-S-Atas"  onclick="toggleLiveSeries('S Atas',this)"  style="color:#ffd700;border-color:rgba(255,215,0,0.4);">S↑</button>
+          <button class="ctrl-btn active" id="liveBtn-S-Bawah" onclick="toggleLiveSeries('S Bawah',this)" style="color:#cc9d00;border-color:rgba(204,157,0,0.4);">S↓</button>
+          <button class="ctrl-btn active" id="liveBtn-T-Atas"  onclick="toggleLiveSeries('T Atas',this)"  style="color:#4499ff;border-color:rgba(68,153,255,0.4);">T↑</button>
+          <button class="ctrl-btn active" id="liveBtn-T-Bawah" onclick="toggleLiveSeries('T Bawah',this)" style="color:#2266cc;border-color:rgba(34,102,204,0.4);">T↓</button>
         </div>
         <!-- Live stats pills -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;" id="live-stats-pills">
@@ -1689,13 +1695,21 @@
       <!-- Time Period + Zoom Controls -->
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding:8px 12px;background:rgba(0,212,255,0.03);border:1px solid rgba(0,212,255,0.08);border-radius:6px;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">PERIODE:</span>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">FILTER:</span>
           <button class="ctrl-btn" id="lcPer-1h"   onclick="setLiveTimePeriod('1h',this)">1H</button>
           <button class="ctrl-btn" id="lcPer-6h"   onclick="setLiveTimePeriod('6h',this)">6H</button>
           <button class="ctrl-btn" id="lcPer-12h"  onclick="setLiveTimePeriod('12h',this)">12H</button>
           <button class="ctrl-btn" id="lcPer-24h"  onclick="setLiveTimePeriod('24h',this)">24H</button>
           <button class="ctrl-btn" id="lcPer-7d"   onclick="setLiveTimePeriod('7d',this)">7D</button>
-          <button class="ctrl-btn active" id="lcPer-all"  onclick="setLiveTimePeriod('all',this)">FULL DATA</button>
+          <button class="ctrl-btn active" id="lcPer-all"  onclick="setLiveTimePeriod('all',this)">SEMUA</button>
+          <div style="width:1px;height:16px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
+          <button class="ctrl-btn" id="lcFetchAll" onclick="fetchAllDataForChart(this)" style="color:var(--green);border-color:rgba(0,255,136,0.3);font-size:10px;" title="Ambil seluruh data historis dari server">📥 Muat Semua Data</button>
+          <a id="live-source-link" href="#" target="_blank" rel="noopener"
+             style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;font-family:var(--font-mono);font-size:10px;color:var(--cyan);background:rgba(0,212,255,0.06);border:1px solid rgba(0,212,255,0.2);border-radius:4px;text-decoration:none;white-space:nowrap;transition:background 0.2s;"
+             onmouseover="this.style.background='rgba(0,212,255,0.12)'" onmouseout="this.style.background='rgba(0,212,255,0.06)'">
+            🔗 Sumber Data
+          </a>
+          <span id="live-fetch-status" style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);"></span>
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
           <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">Zoom: scroll · Pan: drag</span>
@@ -1713,10 +1727,12 @@
       </div>
       <!-- Bottom info bar -->
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.04);">
-        <div style="display:flex;gap:16px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">
-          <span>↑ Atas (Terminal Atas PMT)</span>
-          <span>↓ Bawah (Terminal Bawah PMT)</span>
-          <span id="live-window">Window: -- points</span>
+        <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:10px;flex-wrap:wrap;">
+          <span style="color:#ff3355;">▬▬ Fasa R (Merah)</span>
+          <span style="color:#ffd700;">▬▬ Fasa S (Kuning)</span>
+          <span style="color:#4499ff;">▬▬ Fasa T (Biru)</span>
+          <span style="color:var(--text-muted);">↑ Atas · ↓ Bawah · ─ ─ Bawah (dashed)</span>
+          <span id="live-window" style="color:var(--text-muted);">Window: -- points</span>
         </div>
         <div style="display:flex;gap:12px;font-family:var(--font-mono);font-size:10px;">
           <span style="color:rgba(0,255,136,0.6);">▬ Normal &lt;55°C</span>
@@ -2255,12 +2271,12 @@ const LiveChart = {
   },
 
   SERIES_CFG: [
-    { key:'R Atas',  color:'#00d4ff', dash:null,    width:2   },
-    { key:'R Bawah', color:'#00a8cc', dash:[5,3],   width:1.5 },
-    { key:'S Atas',  color:'#ff6b35', dash:null,    width:2   },
-    { key:'S Bawah', color:'#cc4a1f', dash:[5,3],   width:1.5 },
-    { key:'T Atas',  color:'#ffd700', dash:null,    width:2   },
-    { key:'T Bawah', color:'#cc9d00', dash:[5,3],   width:1.5 },
+    { key:'R Atas',  color:'#ff3355', dash:null,    width:2   },
+    { key:'R Bawah', color:'#cc1133', dash:[5,3],   width:1.5 },
+    { key:'S Atas',  color:'#ffd700', dash:null,    width:2   },
+    { key:'S Bawah', color:'#cc9d00', dash:[5,3],   width:1.5 },
+    { key:'T Atas',  color:'#4499ff', dash:null,    width:2   },
+    { key:'T Bawah', color:'#2266cc', dash:[5,3],   width:1.5 },
   ],
 
   init() {
@@ -2335,14 +2351,17 @@ const LiveChart = {
             pan: {
               enabled: true,
               mode: 'x',
-              threshold: 5,
+              threshold: 3,
+              onPanStart: () => { const c = document.getElementById('liveChart'); if(c) c.style.cursor='grabbing'; },
+              onPanComplete: () => { const c = document.getElementById('liveChart'); if(c) c.style.cursor='grab'; },
             },
             zoom: {
-              wheel: { enabled: true, speed: 0.08 },
+              wheel: { enabled: true, speed: 0.1 },
               pinch: { enabled: true },
               mode: 'x',
+              onZoomStart: () => true,
             },
-            limits: { x: { minRange: 5 } },
+            limits: { x: { minRange: 3 } },
           },
         },
         scales: {
@@ -2545,6 +2564,36 @@ function setLiveTimePeriod(period, btn) {
 
 function resetLiveZoom() {
   if (LiveChart.chart && LiveChart.chart.resetZoom) LiveChart.chart.resetZoom();
+}
+
+/** Fetch ALL historical data from server and show it on the live chart */
+async function fetchAllDataForChart(btn) {
+  const statusEl = document.getElementById('live-fetch-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Memuat...'; }
+  if (statusEl) statusEl.textContent = 'Mengambil semua data...';
+  const prevPeriod = POLL.currentPeriod;
+  POLL.currentPeriod = 'all';
+  try {
+    await fetchAndRender();
+    // Switch client filter to 'all'
+    const allBtn = document.getElementById('lcPer-all');
+    if (allBtn) setLiveTimePeriod('all', allBtn);
+    if (statusEl) statusEl.textContent = `✓ ${APP.data.length.toLocaleString('id-ID')} baris dimuat`;
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 4000);
+  } catch(e) {
+    POLL.currentPeriod = prevPeriod;
+    if (statusEl) statusEl.textContent = '✗ Gagal memuat';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Muat Semua Data'; }
+  }
+}
+
+/** Update "Sumber Data" href to point to the Google Sheet */
+function initSourceLink() {
+  const el = document.getElementById('live-source-link');
+  if (!el) return;
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/edit`;
+  el.href = sheetUrl;
 }
 
 /* ============================================================
@@ -3639,6 +3688,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   try { startClock(); } catch(e) { console.error('startClock:', e); }
   try { initCharts(); } catch(e) { console.error('initCharts:', e); }
+  try { initSourceLink(); } catch(e) { console.warn('initSourceLink:', e); }
 
   try {
     APP.data = generateDummyData();
