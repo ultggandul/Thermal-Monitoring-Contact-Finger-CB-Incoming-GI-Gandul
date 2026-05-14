@@ -1457,7 +1457,19 @@
             <button class="ctrl-btn active" onclick="toggleSeries('T',this)" id="btn-T" style="color:#4499ff;border-color:rgba(68,153,255,0.4);">T</button>
           </div>
         </div>
-        <canvas id="trendChart" height="220"></canvas>
+        <!-- Filter periode -->
+        <div class="chart-controls" style="margin-bottom:10px;gap:5px;">
+          <span style="font-family:var(--font-display);font-size:9px;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;margin-right:2px;">Periode:</span>
+          <button class="ctrl-btn" id="trendPer-1h"  onclick="setTrendPeriod('1h',this)">1J</button>
+          <button class="ctrl-btn" id="trendPer-6h"  onclick="setTrendPeriod('6h',this)">6J</button>
+          <button class="ctrl-btn" id="trendPer-12h" onclick="setTrendPeriod('12h',this)">12J</button>
+          <button class="ctrl-btn" id="trendPer-24h" onclick="setTrendPeriod('24h',this)">24J</button>
+          <button class="ctrl-btn" id="trendPer-7d"  onclick="setTrendPeriod('7d',this)">7H</button>
+          <button class="ctrl-btn" id="trendPer-30d" onclick="setTrendPeriod('30d',this)">30H</button>
+          <button class="ctrl-btn active" id="trendPer-all" onclick="setTrendPeriod('all',this)">Semua</button>
+          <span style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);margin-left:4px;" id="trend-period-info"></span>
+        </div>
+        <canvas id="trendChart" height="200"></canvas>
       </div>
     </div>
   </div>
@@ -2611,6 +2623,7 @@ let APP = {
   data: [],
   activeGaugeTrafo: 2,
   activeTrendTrafo: 2,
+  trendPeriod: 'all',
   trendVisibility: { R: true, S: true, T: true },
   charts: {},
   refreshTimer: null,
@@ -3019,21 +3032,49 @@ function renderGauges(data, trafo) {
 /* ---- Trend Chart ---- */
 function renderTrend(data, trafo) {
   const t = `t${trafo}`;
-  // Downsample ke max 800 titik agar chart tetap responsif
+
+  // ── Filter berdasarkan periode yang dipilih ──────────────
+  const periodMs = {
+    '1h' : 1 * 3600e3,
+    '6h' : 6 * 3600e3,
+    '12h': 12 * 3600e3,
+    '24h': 24 * 3600e3,
+    '7d' : 7  * 86400e3,
+    '30d': 30 * 86400e3,
+  };
+  let filtered = data;
+  if (APP.trendPeriod !== 'all' && periodMs[APP.trendPeriod]) {
+    const cutoff = Date.now() - periodMs[APP.trendPeriod];
+    filtered = data.filter(d => new Date(d.timestamp).getTime() >= cutoff);
+    if (!filtered.length) filtered = data.slice(-10); // fallback minimal
+  }
+
+  // ── Downsample ke max 800 titik agar chart tetap responsif ──
   const MAX_CHART_PTS = 800;
-  const slice = data.length > MAX_CHART_PTS
+  const slice = filtered.length > MAX_CHART_PTS
     ? (() => {
-        const step = data.length / MAX_CHART_PTS;
+        const step = filtered.length / MAX_CHART_PTS;
         const out = [];
         for (let i = 0; i < MAX_CHART_PTS; i++) {
-          out.push(data[Math.min(Math.round(i * step), data.length - 1)]);
+          out.push(filtered[Math.min(Math.round(i * step), filtered.length - 1)]);
         }
-        out[out.length - 1] = data[data.length - 1]; // selalu sertakan titik terbaru
+        out[out.length - 1] = filtered[filtered.length - 1];
         return out;
       })()
-    : data;
-  const span = data.length > 1
-    ? new Date(data[data.length-1].timestamp) - new Date(data[0].timestamp) : 0;
+    : filtered;
+
+  // ── Info label jumlah titik ──────────────────────────────
+  const infoEl = document.getElementById('trend-period-info');
+  if (infoEl) {
+    const shown = slice.length;
+    const total = filtered.length;
+    infoEl.textContent = total !== shown
+      ? `${total} baris → ${shown} pts`
+      : `${total} baris`;
+  }
+
+  const span = filtered.length > 1
+    ? new Date(filtered[filtered.length-1].timestamp) - new Date(filtered[0].timestamp) : 0;
   const labels = slice.map(d => {
     const dt = new Date(d.timestamp);
     if (span > 86400000) {
@@ -3665,6 +3706,14 @@ function setTrendTrafo(num, btn) {
   btn.closest('.chart-controls').querySelectorAll('.ctrl-btn:not([id^="btn-"])').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderTrend(APP.data, num);
+}
+
+function setTrendPeriod(period, btn) {
+  APP.trendPeriod = period;
+  // Reset semua tombol periode
+  document.querySelectorAll('[id^="trendPer-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTrend(APP.data, APP.activeTrendTrafo);
 }
 
 function toggleSeries(phase, btn) {
