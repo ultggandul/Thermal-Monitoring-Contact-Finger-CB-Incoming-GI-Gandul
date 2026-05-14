@@ -1916,7 +1916,8 @@ const CONFIG = (function() {
     SHEET_NAME      : stored.SHEET_NAME       || 'Sheet1',
     APPS_SCRIPT_URL : stored.APPS_SCRIPT_URL  || 'https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec',
     REFRESH_INTERVAL: (stored.REFRESH_INTERVAL || 30) * 1000,
-    MAX_TREND_POINTS: 48,
+    MAX_TREND_POINTS: 5000,   // ← full data (downsample otomatis oleh LiveChart)
+    MAX_TABLE_ROWS  : 5000,   // ← full data di tabel
     THRESH          : { NORMAL: 55, MONITOR: 65, WARNING: 75 },
     AGING_REF_TEMP  : 40,
   };
@@ -2220,7 +2221,7 @@ const LiveChart = {
   chart: null,
   tickTimer: null,
   liveBuffer: [],
-  MAX_LIVE_POINTS: 600,
+  MAX_LIVE_POINTS: 5000,   // ← full data; downsample ke 800 titik untuk performa chart
 
   /* ── Lossless Largest-Triangle-Three-Buckets downsample ── */
   downsample(data, maxPts) {
@@ -3011,9 +3012,30 @@ function renderGauges(data, trafo) {
 /* ---- Trend Chart ---- */
 function renderTrend(data, trafo) {
   const t = `t${trafo}`;
-  const slice = data.slice(-CONFIG.MAX_TREND_POINTS);
+  // Downsample ke maks 800 titik untuk performa chart, tapi pakai semua data sebagai input
+  // Algoritma: ambil setiap N baris agar distribusi waktu merata (equal-interval decimation)
+  const MAX_CHART_PTS = 800;
+  const slice = data.length > MAX_CHART_PTS
+    ? (function() {
+        const step = data.length / MAX_CHART_PTS;
+        const out = [];
+        for (let i = 0; i < MAX_CHART_PTS; i++) {
+          out.push(data[Math.min(Math.round(i * step), data.length - 1)]);
+        }
+        // Selalu sertakan titik terakhir (data terbaru)
+        if (out[out.length - 1] !== data[data.length - 1]) out[out.length - 1] = data[data.length - 1];
+        return out;
+      })()
+    : data;
   const labels = slice.map(d => {
     const dt = new Date(d.timestamp);
+    // Tampilkan tanggal+jam jika rentang data > 24 jam
+    const span = data.length > 1
+      ? new Date(data[data.length-1].timestamp) - new Date(data[0].timestamp)
+      : 0;
+    if (span > 86400000) {
+      return `${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getDate().toString().padStart(2,'0')} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+    }
     return `${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
   });
 
@@ -3581,7 +3603,7 @@ async function fetchAndRender() {
 
   if (CONFIG.APPS_SCRIPT_URL && !CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) {
     try {
-      const d = await fetchScript(CONFIG.APPS_SCRIPT_URL + '?mode=full&period=' + POLL.currentPeriod);
+      const d = await fetchScript(CONFIG.APPS_SCRIPT_URL + '?mode=full&limit=5000&period=' + POLL.currentPeriod);
       if (!d || d.status !== 'ok' || !d.data || !d.data.length) throw new Error(d ? d.message : 'empty');
       APP.data = d.data.map(r => Object.assign({}, r, { timestamp: new Date(r.timestamp) }))
                        .filter(r => !isNaN(r.timestamp));
@@ -3590,7 +3612,10 @@ async function fetchAndRender() {
       APP.usingDummy = false;
       const ms  = Date.now() - t0;
       const upd = new Date(d.serverTime || d.lastTimestamp);
-      document.getElementById('conn-source').textContent   = '✓ APPS SCRIPT · ' + d.count + ' baris';
+      const totalInfo = d.total && d.total > d.count
+        ? `${d.count} baris (dari ${d.total} total)`
+        : `${d.count} baris`;
+      document.getElementById('conn-source').textContent   = '✓ APPS SCRIPT · ' + totalInfo;
       document.getElementById('conn-latency').textContent  = 'FETCH: ' + ms + 'ms';
       document.getElementById('conn-points').textContent   = 'DATAPOINTS: ' + d.count;
       document.getElementById('last-update').textContent   = 'Update: ' + upd.toLocaleString('id-ID');
