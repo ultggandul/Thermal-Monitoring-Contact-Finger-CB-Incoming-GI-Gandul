@@ -1452,9 +1452,9 @@
             <button class="ctrl-btn active" onclick="setTrendTrafo(2,this)">Trafo 2</button>
             <button class="ctrl-btn" onclick="setTrendTrafo(3,this)">Trafo 3</button>
             <button class="ctrl-btn" onclick="setTrendTrafo(4,this)">Trafo 4</button>
-            <button class="ctrl-btn active" onclick="toggleSeries('R',this)" id="btn-R" style="--accent:var(--cyan);">R</button>
-            <button class="ctrl-btn active" onclick="toggleSeries('S',this)" id="btn-S">S</button>
-            <button class="ctrl-btn active" onclick="toggleSeries('T',this)" id="btn-T">T</button>
+            <button class="ctrl-btn active" onclick="toggleSeries('R',this)" id="btn-R" style="color:#ff3355;border-color:rgba(255,51,85,0.4);">R</button>
+            <button class="ctrl-btn active" onclick="toggleSeries('S',this)" id="btn-S" style="color:#ffd700;border-color:rgba(255,215,0,0.4);">S</button>
+            <button class="ctrl-btn active" onclick="toggleSeries('T',this)" id="btn-T" style="color:#4499ff;border-color:rgba(68,153,255,0.4);">T</button>
           </div>
         </div>
         <canvas id="trendChart" height="220"></canvas>
@@ -1765,11 +1765,11 @@
         <button class="ctrl-btn" id="tblPer-30m" onclick="setTablePeriod('30m',this)">30m</button>
         <button class="ctrl-btn" id="tblPer-1h"  onclick="setTablePeriod('1h',this)">1 Jam</button>
         <button class="ctrl-btn" id="tblPer-6h"  onclick="setTablePeriod('6h',this)">6 Jam</button>
-        <button class="ctrl-btn active" id="tblPer-1d" onclick="setTablePeriod('1d',this)">1 Hari</button>
+        <button class="ctrl-btn" id="tblPer-1d" onclick="setTablePeriod('1d',this)">1 Hari</button>
         <button class="ctrl-btn" id="tblPer-1w"  onclick="setTablePeriod('1w',this)">1 Minggu</button>
         <button class="ctrl-btn" id="tblPer-1mo" onclick="setTablePeriod('1mo',this)">1 Bulan</button>
         <button class="ctrl-btn" id="tblPer-1y"  onclick="setTablePeriod('1y',this)">1 Tahun</button>
-        <button class="ctrl-btn" id="tblPer-all" onclick="setTablePeriod('all',this)">All Data</button>
+        <button class="ctrl-btn active" id="tblPer-all" onclick="setTablePeriod('all',this)">All Data</button>
         <div style="width:1px;height:16px;background:rgba(255,255,255,0.08);margin:0 2px;"></div>
         <span id="tbl-period-info" style="font-family:var(--font-mono);font-size:10px;color:var(--cyan);">-- baris</span>
       </div>
@@ -2989,9 +2989,9 @@ function renderGauges(data, trafo) {
   // Delta indicators
   const dp = Analytics.deltaPhase(lt.r_atas, lt.s_atas, lt.t_atas);
   const phases = [
-    { id: 'R', color: '#00d4ff', val: lt.r_atas },
-    { id: 'S', color: '#ff6b35', val: lt.s_atas },
-    { id: 'T', color: '#ffd700', val: lt.t_atas },
+    { id: 'R', color: '#ff3355', val: lt.r_atas },
+    { id: 'S', color: '#ffd700', val: lt.s_atas },
+    { id: 'T', color: '#4499ff', val: lt.t_atas },
   ];
   document.getElementById('delta-grid').innerHTML = `
     ${phases.map(p => `
@@ -3027,8 +3027,8 @@ function renderTrend(data, trafo) {
     {
       label: 'R Atas',
       data: rAtasData,
-      borderColor: '#00d4ff',
-      backgroundColor: 'rgba(0,212,255,0.05)',
+      borderColor: '#ff3355',
+      backgroundColor: 'rgba(255,51,85,0.06)',
       borderWidth: 2,
       tension: 0.5,
             cubicInterpolationMode: 'monotone',
@@ -3040,8 +3040,8 @@ function renderTrend(data, trafo) {
     {
       label: 'S Atas',
       data: sAtasData,
-      borderColor: '#ff6b35',
-      backgroundColor: 'rgba(255,107,53,0.04)',
+      borderColor: '#ffd700',
+      backgroundColor: 'rgba(255,215,0,0.05)',
       borderWidth: 2,
       tension: 0.5,
             cubicInterpolationMode: 'monotone',
@@ -3053,8 +3053,8 @@ function renderTrend(data, trafo) {
     {
       label: 'T Atas',
       data: tAtasData,
-      borderColor: '#ffd700',
-      backgroundColor: 'rgba(255,215,0,0.04)',
+      borderColor: '#4499ff',
+      backgroundColor: 'rgba(68,153,255,0.05)',
       borderWidth: 2,
       tension: 0.5,
             cubicInterpolationMode: 'monotone',
@@ -3066,7 +3066,7 @@ function renderTrend(data, trafo) {
     {
       label: 'S Bawah',
       data: sBawahData,
-      borderColor: 'rgba(255,107,53,0.4)',
+      borderColor: 'rgba(255,215,0,0.5)',
       borderWidth: 1.2,
       tension: 0.5,
             cubicInterpolationMode: 'monotone',
@@ -3079,7 +3079,7 @@ function renderTrend(data, trafo) {
     {
       label: 'R MA(5)',
       data: rMAData,
-      borderColor: 'rgba(0,212,255,0.3)',
+      borderColor: 'rgba(255,51,85,0.35)',
       borderWidth: 1,
       borderDash: [6,3],
       tension: 0.5,
@@ -3268,9 +3268,9 @@ function renderPhaseRadar(data) {
         <div class="ptc-bar"><div class="ptc-bar-fill" style="width:${Math.min(100,maxT/90*100)}%;background:${tColor};"></div></div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
           <div style="display:flex;gap:6px;">
-            <span style="font-family:var(--font-mono);font-size:10px;color:#00d4ff;">R:${lt.r_atas.toFixed(1)}</span>
-            <span style="font-family:var(--font-mono);font-size:10px;color:#ff6b35;">S:${lt.s_atas.toFixed(1)}</span>
-            <span style="font-family:var(--font-mono);font-size:10px;color:#ffd700;">T:${lt.t_atas.toFixed(1)}</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:#ff3355;">R:${lt.r_atas.toFixed(1)}</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:#ffd700;">S:${lt.s_atas.toFixed(1)}</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:#4499ff;">T:${lt.t_atas.toFixed(1)}</span>
           </div>
           <span class="pill ${sevLabel}" style="font-size:9px;padding:1px 7px;">${sevLabel.toUpperCase()}</span>
         </div>
@@ -3527,7 +3527,7 @@ function renderAll(data) {
 /* ============================================================
    8. DATA FETCH
 ============================================================ */
-const POLL = { lastTimestamp: null, checkTimer: null, isFetching: false, currentPeriod: '1d' };
+const POLL = { lastTimestamp: null, checkTimer: null, isFetching: false, currentPeriod: 'all' };
 
 /* JSONP — bypass CORS 100%, works from any domain */
 /* fetchScript: fetch() utama, JSONP sebagai fallback
@@ -3929,7 +3929,7 @@ const TableView = {
   posisiFilter:   'all',
   severityFilter: 'all',   // 'all'|'warning'|'critical'
   searchQuery:    '',
-  timePeriod:     '1d',    // client-side time window
+  timePeriod:     'all',    // client-side time window
 
   COLUMNS: [
     { key: 'timestamp',  label: 'Timestamp',  group: '',       phaseClass: '' },
