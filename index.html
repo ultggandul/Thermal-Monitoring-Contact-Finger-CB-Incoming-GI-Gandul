@@ -1916,8 +1916,7 @@ const CONFIG = (function() {
     SHEET_NAME      : stored.SHEET_NAME       || 'Sheet1',
     APPS_SCRIPT_URL : stored.APPS_SCRIPT_URL  || 'https://script.google.com/macros/s/AKfycbwtNiDj9QdYCPtXIIGglYNQFNOmrJAKDJbkFBzoExuEUr6WW1JNYsMSPmfian4OlnK6iQ/exec',
     REFRESH_INTERVAL: (stored.REFRESH_INTERVAL || 30) * 1000,
-    MAX_TREND_POINTS: 5000,   // ← full data (downsample otomatis oleh LiveChart)
-    MAX_TABLE_ROWS  : 5000,   // ← full data di tabel
+    MAX_TREND_POINTS: 5000,
     THRESH          : { NORMAL: 55, MONITOR: 65, WARNING: 75 },
     AGING_REF_TEMP  : 40,
   };
@@ -2221,7 +2220,7 @@ const LiveChart = {
   chart: null,
   tickTimer: null,
   liveBuffer: [],
-  MAX_LIVE_POINTS: 5000,   // ← full data; downsample ke 800 titik untuk performa chart
+  MAX_LIVE_POINTS: 5000,
 
   /* ── Lossless Largest-Triangle-Three-Buckets downsample ── */
   downsample(data, maxPts) {
@@ -3012,27 +3011,23 @@ function renderGauges(data, trafo) {
 /* ---- Trend Chart ---- */
 function renderTrend(data, trafo) {
   const t = `t${trafo}`;
-  // Downsample ke maks 800 titik untuk performa chart, tapi pakai semua data sebagai input
-  // Algoritma: ambil setiap N baris agar distribusi waktu merata (equal-interval decimation)
+  // Downsample ke max 800 titik agar chart tetap responsif
   const MAX_CHART_PTS = 800;
   const slice = data.length > MAX_CHART_PTS
-    ? (function() {
+    ? (() => {
         const step = data.length / MAX_CHART_PTS;
         const out = [];
         for (let i = 0; i < MAX_CHART_PTS; i++) {
           out.push(data[Math.min(Math.round(i * step), data.length - 1)]);
         }
-        // Selalu sertakan titik terakhir (data terbaru)
-        if (out[out.length - 1] !== data[data.length - 1]) out[out.length - 1] = data[data.length - 1];
+        out[out.length - 1] = data[data.length - 1]; // selalu sertakan titik terbaru
         return out;
       })()
     : data;
+  const span = data.length > 1
+    ? new Date(data[data.length-1].timestamp) - new Date(data[0].timestamp) : 0;
   const labels = slice.map(d => {
     const dt = new Date(d.timestamp);
-    // Tampilkan tanggal+jam jika rentang data > 24 jam
-    const span = data.length > 1
-      ? new Date(data[data.length-1].timestamp) - new Date(data[0].timestamp)
-      : 0;
     if (span > 86400000) {
       return `${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getDate().toString().padStart(2,'0')} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
     }
@@ -3603,24 +3598,30 @@ async function fetchAndRender() {
 
   if (CONFIG.APPS_SCRIPT_URL && !CONFIG.APPS_SCRIPT_URL.includes('PASTE_APPS_SCRIPT')) {
     try {
-      const d = await fetchScript(CONFIG.APPS_SCRIPT_URL + '?mode=full&limit=5000&period=' + POLL.currentPeriod);
-      if (!d || d.status !== 'ok' || !d.data || !d.data.length) throw new Error(d ? d.message : 'empty');
+      debugLog('⏳ Fetching: ' + CONFIG.APPS_SCRIPT_URL + '?mode=full&limit=5000');
+      const d = await fetchScript(CONFIG.APPS_SCRIPT_URL + '?mode=full&limit=5000');
+      debugLog('✅ Response: status=' + (d && d.status) + ' count=' + (d && d.count) + ' total=' + (d && d.total) + ' dataLen=' + (d && d.data && d.data.length));
+      if (!d || d.status !== 'ok' || !d.data || !d.data.length) throw new Error(d ? (d.message || 'data kosong') : 'no response');
       APP.data = d.data.map(r => Object.assign({}, r, { timestamp: new Date(r.timestamp) }))
                        .filter(r => !isNaN(r.timestamp));
+      debugLog('📊 Parsed rows: ' + APP.data.length + ' | first: ' + (APP.data[0] && APP.data[0].timestamp));
       if (!APP.data.length) throw new Error('timestamps invalid');
       POLL.lastTimestamp = d.lastTimestamp;
       APP.usingDummy = false;
       const ms  = Date.now() - t0;
       const upd = new Date(d.serverTime || d.lastTimestamp);
-      const totalInfo = d.total && d.total > d.count
-        ? `${d.count} baris (dari ${d.total} total)`
-        : `${d.count} baris`;
+      const totalInfo = (d.total && d.total > d.count) ? `${d.count} baris (total sheet: ${d.total})` : `${d.count} baris`;
       document.getElementById('conn-source').textContent   = '✓ APPS SCRIPT · ' + totalInfo;
       document.getElementById('conn-latency').textContent  = 'FETCH: ' + ms + 'ms';
       document.getElementById('conn-points').textContent   = 'DATAPOINTS: ' + d.count;
       document.getElementById('last-update').textContent   = 'Update: ' + upd.toLocaleString('id-ID');
       POLL.isFetching = false; renderAll(APP.data); return;
-    } catch(e) { console.warn('[THERMAL] JSONP:', e.message); }
+    } catch(e) {
+      debugLog('❌ ERROR: ' + e.message);
+      console.warn('[THERMAL] fetch error:', e.message);
+    }
+  } else {
+    debugLog('⚠ Apps Script URL belum diset atau tidak valid');
   }
 
   if (!APP.data.length || APP.usingDummy) APP.data = generateDummyData();
@@ -4388,6 +4389,72 @@ async function testConnection() {
 document.getElementById('settings-overlay') &&
 document.getElementById('settings-overlay').addEventListener('click', function(e) {
   if (e.target === this) closeSettings();
+});
+
+/* ============================================================
+   DEBUG PANEL — Bantu diagnosa masalah koneksi
+============================================================ */
+const _debugLogs = [];
+function debugLog(msg) {
+  const ts = new Date().toLocaleTimeString('id-ID');
+  _debugLogs.unshift('[' + ts + '] ' + msg);
+  if (_debugLogs.length > 30) _debugLogs.pop();
+  const el = document.getElementById('debug-log');
+  if (el) el.textContent = _debugLogs.join('\n');
+  console.log('[DBG]', msg);
+}
+
+function toggleDebug() {
+  const panel = document.getElementById('debug-panel');
+  if (!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+async function debugFetch() {
+  const url = CONFIG.APPS_SCRIPT_URL;
+  debugLog('🔍 Manual test: ' + url);
+  const el = document.getElementById('debug-log');
+
+  // Test mode=check
+  try {
+    debugLog('▶ Testing ?mode=check ...');
+    const d = await fetchScript(url + '?mode=check');
+    debugLog('CHECK → ' + JSON.stringify(d));
+  } catch(e) { debugLog('CHECK ERROR → ' + e.message); }
+
+  // Test mode=full&limit=5
+  try {
+    debugLog('▶ Testing ?mode=full&limit=5 ...');
+    const d = await fetchScript(url + '?mode=full&limit=5');
+    debugLog('FULL → status:' + d.status + ' count:' + d.count + ' total:' + d.total + ' data[0]:' + JSON.stringify(d.data && d.data[0]));
+  } catch(e) { debugLog('FULL ERROR → ' + e.message); }
+}
+
+// Inject debug panel into DOM after load
+document.addEventListener('DOMContentLoaded', () => {
+  const dbDiv = document.createElement('div');
+  dbDiv.id = 'debug-panel';
+  dbDiv.style.cssText = 'display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#0a1020;border-top:2px solid #00d4ff;padding:12px;font-family:monospace;font-size:11px;max-height:280px;overflow:auto;';
+  dbDiv.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="color:#00d4ff;font-weight:bold;">🔧 DEBUG PANEL</span>
+      <button onclick="debugFetch()" style="background:#00d4ff22;border:1px solid #00d4ff44;color:#00d4ff;padding:3px 10px;border-radius:3px;cursor:pointer;font-family:monospace;font-size:11px;">▶ TEST FETCH</button>
+      <button onclick="fetchAndRender()" style="background:#00ff8822;border:1px solid #00ff8844;color:#00ff88;padding:3px 10px;border-radius:3px;cursor:pointer;font-family:monospace;font-size:11px;">🔄 FORCE REFRESH</button>
+      <button onclick="toggleDebug()" style="background:#ff224422;border:1px solid #ff224444;color:#ff2244;padding:3px 10px;border-radius:3px;cursor:pointer;font-family:monospace;font-size:11px;">✕ Tutup</button>
+      <span style="color:#527a94;margin-left:auto;">Tekan Ctrl+Shift+D untuk toggle</span>
+    </div>
+    <div style="color:#7a9bb5;margin-bottom:4px;">URL: <span style="color:#00d4ff;" id="debug-url"></span></div>
+    <pre id="debug-log" style="color:#90b3cc;white-space:pre-wrap;margin:0;line-height:1.6;"></pre>
+  `;
+  document.body.appendChild(dbDiv);
+  document.getElementById('debug-url').textContent = CONFIG.APPS_SCRIPT_URL || '(belum diset)';
+
+  // Keyboard shortcut
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); toggleDebug(); }
+  });
+
+  debugLog('🚀 Dashboard initialized. URL: ' + (CONFIG.APPS_SCRIPT_URL || 'NOT SET'));
 });
 
 
